@@ -1,4 +1,4 @@
-import pygame
+import pygame # type: ignore
 import sys
 import os
 
@@ -35,11 +35,10 @@ class Game:
         pass
 
     def drawBg(self):
-        self.screen.fill((30, 30, 30))  # Clear screen with a dark gray (RGB)
+        self.screen.fill((30, 30, 30))
 
     def draw(self):
         self.drawBg()
-        # Draw other game elements here
 
 if __name__ == "__main__":
     game = Game()
