@@ -1,0 +1,32 @@
+{
+    "bucket": {
+        "size": [16, 16],
+        "frames": 1,
+        "row": 0,
+        "path": "Assets/paintbuckets.png"
+    },
+    "lid": {
+        "size": [16, 16],
+        "frames": 1,
+        "row": 1,
+        "path": "Assets/paintbuckets.png"
+    },
+    "paint": {
+        "size": [16, 16],
+        "frames": 1,
+        "row": 2,
+        "path": "Assets/paintbuckets.png"
+    },
+    "water": {
+        "size": [16, 16],
+        "frames": 1,
+        "row": 3,
+        "path": "Assets/paintbuckets.png"
+    },
+    "acrylic": {
+        "size": [16, 16],
+        "frames": 1,
+        "row": 4,
+        "path": "Assets/paintbuckets.png"
+    }
+}
