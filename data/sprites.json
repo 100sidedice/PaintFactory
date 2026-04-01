@@ -3,30 +3,35 @@
         "size": [16, 16],
         "frames": 1,
         "row": 0,
-        "path": "Assets/paintbuckets.png"
+        "image": "paintbuckets.png",
+        "type": "item"
     },
     "lid": {
         "size": [16, 16],
         "frames": 1,
         "row": 1,
-        "path": "Assets/paintbuckets.png"
+        "image": "paintbuckets.png",
+        "type": "item"
     },
     "paint": {
         "size": [16, 16],
         "frames": 1,
         "row": 2,
-        "path": "Assets/paintbuckets.png"
+        "image": "paintbuckets.png",
+        "type": "item"
     },
     "water": {
         "size": [16, 16],
         "frames": 1,
         "row": 3,
-        "path": "Assets/paintbuckets.png"
+        "image": "paintbuckets.png",
+        "type": "item"
     },
     "acrylic": {
         "size": [16, 16],
         "frames": 1,
         "row": 4,
-        "path": "Assets/paintbuckets.png"
+        "image": "paintbuckets.png",
+        "type": "item"
     }
 }

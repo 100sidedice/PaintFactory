@@ -1,56 +1,134 @@
 {
     "conveyor-basic": {
-        "name": "Basic Conveyor",
-        "description": "A simple conveyor belt that moves items in one direction.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 0,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "Basic Conveyor",
+            "description": "A simple conveyor belt that moves items in one direction.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"move",
+            "inputs":{
+                "up": {"type": "output"},
+                "down": {"type": "input"},
+                "left": {"type": "none"},
+                "right": {"type": "none"}
+            }
         }
     },
     "conveyor-corner-left": {
-        "name": "Corner Conveyor (Left)",
-        "description": "A conveyor belt that turns items 90 degrees.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 1,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+        
+        "machineData": {
+            "name": "Corner Conveyor (Left)",
+            "description": "A conveyor belt that turns items 90 degrees.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"move",
+            "inputs":{
+                "up": {"type": "none"},
+                "down": {"type": "output"},
+                "left": {"type": "input"},
+                "right": {"type": "none"}
+            }
         }
     },
     "conveyor-corner-right": {
-        "name": "Corner Conveyor (Right)",
-        "description": "A conveyor belt that turns items 90 degrees.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 2,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "Corner Conveyor (Right)",
+            "description": "A conveyor belt that turns items 90 degrees.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action": "move",
+            "inputs": {
+                "up": {"type": "none"},
+                "down": {"type": "output"},
+                "left": {"type": "none"},
+                "right": {"type": "input"}
+            }
         }
     },
     "conveyor-three-way": {
-        "name": "Three-way Conveyor",
-        "description": "A conveyor belt that merges two input lines into one output line.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 3,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "Three-way Conveyor",
+            "description": "A conveyor belt that merges two input lines into one output line.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action": "move",
+            "inputs": {
+                "up": {"type": "none"},
+                "down": {"type": "output"},
+                "left": {"type": "input"},
+                "right": {"type": "input"}
+            }
         }
     },
     "conveyor-three-way-alternitive": {
-        "name": "Three-way Conveyor (Alternative)",
-        "description": "A conveyor belt that merges two input lines into one output line, with an alternative layout.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 4,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "Three-way Conveyor (Alternative)",
+            "description": "A conveyor belt that merges two input lines into one output line, with an alternative layout.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action": "move",
+            "inputs": {
+                "up": {"type": "none"},
+                "down": {"type": "input"},
+                "left": {"type": "input"},
+                "right": {"type": "output"}
+            }
         }
     },
     "conveyor-4way": {
-        "name": "4-Way Conveyor",
-        "description": "A conveyor belt that allows items from three input lines to merge into one output line.",
-        "image": "conveyor.png",
+        "image": "Assets/conveyor.png",
         "row": 4,
-        "properties": {
-            "speed": 1.0
+        "frames": 4,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "4-Way Conveyor",
+            "description": "A conveyor belt that allows items from three input lines to merge into one output line.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action": "move",
+            "inputs": {
+                "up": {"type": "input"},
+                "down": {"type": "output"},
+                "left": {"type": "input"},
+                "right": {"type": "input"}
+            }
         }
     }
 }

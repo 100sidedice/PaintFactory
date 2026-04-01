@@ -1,7 +1,7 @@
 import pygame
 import os
 import json
-from data.settings import TILE_SIZE, ASSETS_DIR
+from data.settings import TILE_SIZE, ASSETS_DIR, spritePaths
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -32,6 +32,7 @@ class AnimatedSprite:
         self.current = 0.0
         # tile pixel size (w,h) used to convert tile coords -> world pixels
         self.tile_size = tile_size or (16, 16)
+        
 
     def update(self, dt):
         if len(self.frames) <= 1:
@@ -74,10 +75,35 @@ class SpriteManager:
 
     Sprite positions are interpreted in tile coordinates (floats allowed).
     """
+    # in-memory cache: json_path -> parsed dict (or None if load failed)
+    _json_cache = {}
     def __init__(self, camera=None, tile_size=(16, 16)):
         self.camera = camera
         self.tile_size = tile_size
         self.sprites = []
+
+    @classmethod
+    def clear_json_cache(cls):
+        """Clear the in-memory JSON cache."""
+        cls._json_cache.clear()
+
+    @staticmethod
+    def _get_json_defs(json_path):
+        """Load and cache JSON defs for `json_path`.
+
+        Returns the parsed dict or None on error.
+        """
+        if not isinstance(json_path, str) or not json_path:
+            return None
+        if json_path in SpriteManager._json_cache:
+            return SpriteManager._json_cache[json_path]
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                defs = json.load(f)
+        except Exception:
+            defs = None
+        SpriteManager._json_cache[json_path] = defs
+        return defs
 
     def add(self, sprite):
         # ensure sprite has tile_size for converting tile coords -> pixels
@@ -119,24 +145,28 @@ class SpriteManager:
           - row: int
           - path: path to image (relative to project root)
         """
-        json_path = os.path.join(BASE_DIR, "data", "sprites.json")
-        with open(json_path, "r", encoding="utf-8") as f:
-            defs = json.load(f)
 
-        if key not in defs:
-            raise KeyError(f"Sprite key '{key}' not found in {json_path}")
+        # Only check JSON files explicitly listed in `spritePaths` from settings.
+        # `spritePaths` is a dict mapping aliases to file paths (may be absolute).
+        for alias, json_path in spritePaths.items():
+            defs = SpriteManager._get_json_defs(json_path)
+            if not defs or key not in defs:
+                continue
 
-        info = defs[key]
-        size = tuple(info.get("size", [16, 16]))
-        frames = int(info.get("frames", 1))
-        row = int(info.get("row", 0))
-        path = info.get("path")
-        img_path = os.path.join(BASE_DIR, path)
+            info = defs[key]
+            size = tuple(info.get("size", [16, 16]))
+            frames = int(info.get("frames", 1))
+            row = int(info.get("row", 0))
+            rel_path = info.get("image")
+            img_path = os.path.join(BASE_DIR, rel_path) if rel_path else None
 
-        sheet = SpriteSheet(img_path)
-        imgs = sheet.images_at_row(row, frames, size, start_col=0)
-        sprite = AnimatedSprite(imgs, pos=pos, tile_size=TILE_SIZE)
-        return sprite
+            if not img_path or not os.path.exists(img_path):
+                continue
+
+            sheet = SpriteSheet(img_path)
+            imgs = sheet.images_at_row(row, frames, size, start_col=0)
+            sprite = AnimatedSprite(imgs, pos=pos, tile_size=TILE_SIZE)
+            return sprite
 
 
 __all__ = ["SpriteSheet", "AnimatedSprite", "SpriteManager"]
