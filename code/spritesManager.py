@@ -23,13 +23,18 @@ class SpriteSheet:
 
 
 class AnimatedSprite:
-    def __init__(self, frames, pos=(0, 0), fps=8, loop=True, tile_size=None):
+    def __init__(self, frames, pos=(0, 0), fps=8, loop=True, tile_size=None, rotation=0):
         self.frames = frames
         # `pos` is in tile coordinates (floats allowed)
         self.pos = pygame.Vector2(pos)
         self.fps = fps
         self.loop = loop
         self.current = 0.0
+        # rotation: integer 0-3 representing 0,90,180,270 degrees
+        try:
+            self.rotation = int(rotation) % 4
+        except Exception:
+            self.rotation = 0
         # tile pixel size (w,h) used to convert tile coords -> world pixels
         self.tile_size = tile_size or (16, 16)
         
@@ -63,6 +68,9 @@ class AnimatedSprite:
             zoom = 1.0
 
         frame = self.frames[idx]
+        # apply discrete rotation (0..3) where each step = 90 degrees
+        if getattr(self, 'rotation', 0) != 0:
+            frame = pygame.transform.rotate(frame, self.rotation * 90)
         if zoom != 1.0:
             fw = max(1, int(frame.get_width() * zoom))
             fh = max(1, int(frame.get_height() * zoom))
@@ -111,12 +119,12 @@ class SpriteManager:
             sprite.tile_size = self.tile_size
         self.sprites.append(sprite)
 
-    def add_from_json(self, key, pos=(0, 0)):
+    def add_from_json(self, key, pos=(0, 0), rotation=0):
         """Load a sprite by key from data/sprites.json and add it to this manager.
 
         `pos` is interpreted in tile coordinates.
         """
-        sprite = SpriteManager.load_from_json(key, pos=pos)
+        sprite = SpriteManager.load_from_json(key, pos=pos, rotation=rotation)
         if not hasattr(sprite, "tile_size") or sprite.tile_size is None:
             sprite.tile_size = self.tile_size
         self.add(sprite)
@@ -136,7 +144,7 @@ class SpriteManager:
                     s.draw(surface)
 
     @staticmethod
-    def load_from_json(key, pos=(0, 0)):
+    def load_from_json(key, pos=(0, 0), rotation=0):
         """Load a sprite definition from data/sprites.json and return an AnimatedSprite.
 
         JSON structure expects keys like in `data/sprites.json` with fields:
@@ -165,7 +173,7 @@ class SpriteManager:
 
             sheet = SpriteSheet(img_path)
             imgs = sheet.images_at_row(row, frames, size, start_col=0)
-            sprite = AnimatedSprite(imgs, pos=pos, tile_size=TILE_SIZE)
+            sprite = AnimatedSprite(imgs, pos=pos, tile_size=TILE_SIZE, rotation=rotation)
             return sprite
 
 

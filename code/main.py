@@ -9,6 +9,7 @@ from data.settings import *
 from input import Input
 from spritesManager import SpriteManager
 from tilemapManager import TilemapManager
+from machineManager import MachineManager
 from camera import Camera
 import os
 
@@ -24,11 +25,18 @@ class Game:
         # setup managers and test content
         self.camera = Camera(WIDTH, HEIGHT)
         self.sprite_manager = SpriteManager(self.camera)
-        self.tilemap =  TilemapManager(self.camera, tile_size=(16, 16))
+        # create a central MachineManager (give it the sprite manager)
+        self.machine_manager = MachineManager(sprite_manager=self.sprite_manager)
+        self.tilemap = TilemapManager(self.camera, tile_size=(16, 16), machineManager=self.machine_manager)
+        # ensure the machine manager knows the tilemap reference
+        self.machine_manager.tilemap = self.tilemap
 
-        # add a test sprite (bucket from data/sprites.json) via manager helper
+
         try:
-            self.sprite_manager.add_from_json("conveyor-basic", pos=(6, 0))
+            sp_data = self.tilemap.tile_defs.get('spawner', {}).get('machineData', {})
+            conv_data = self.tilemap.tile_defs.get('conveyor-basic', {}).get('machineData', {})
+            self.spawner_machine = self.machine_manager.create_machine('spawner', sp_data, pos=(6, 2), rotation=0)
+            self.conveyor_machine = self.machine_manager.create_machine('conveyor-basic', conv_data, pos=(7, 2), rotation=0)
         except Exception:
             pass
 
@@ -52,6 +60,8 @@ class Game:
         # update managers
         if hasattr(self, "sprite_manager"):
             self.sprite_manager.update(dt)
+        if hasattr(self, 'machine_manager'):
+            self.machine_manager.update(dt)
         # camera could follow something in future; ensure it's clamped
         if hasattr(self, "camera"):
             self.camera.update(None)
@@ -64,6 +74,8 @@ class Game:
         # draw tilemap then sprites
         if hasattr(self, "tilemap"):
             self.tilemap.draw_tmx(self.screen, offset=(0, 0), camera=getattr(self, 'camera', None))
+        if hasattr(self, 'machine_manager'):
+            self.machine_manager.draw(self.screen, camera=getattr(self, 'camera', None))
         if hasattr(self, "sprite_manager"):
             self.sprite_manager.draw(self.screen, camera=getattr(self, 'camera', None))
 

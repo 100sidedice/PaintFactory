@@ -3,6 +3,12 @@ import os
 import json
 from data.settings import BASE_DIR, TILE_SIZE, ASSETS_DIR, TILEMAPS_DIR
 
+from machineComponents.item import Item
+from machineComponents.machineComponent import MachineComponent
+from spritesManager import SpriteManager
+from machineManager import MachineManager
+
+from gametimer import Timer
 
 class TileSet:
     def __init__(self, path, tile_size=(16, 16)):
@@ -25,7 +31,7 @@ class TilemapManager:
       [["conveyor-basic","conveyor-basic"], [null, "conveyor-corner-left"]]
     """
 
-    def __init__(self, camera=None, tile_size=None):
+    def __init__(self, camera=None, tile_size=None, machineManager=None):
         self.camera = camera
         self.tile_size = tile_size or TILE_SIZE
         self.tile_defs = {}
@@ -35,6 +41,14 @@ class TilemapManager:
         self.map_layers = []
         self.map_width = 0
         self.map_height = 0
+
+        self.timer = Timer()
+
+        # central machine manager (manages machines and items)
+        if machineManager is None:
+            self.machineManager = MachineManager(self)
+        else:
+            self.machineManager = machineManager
 
         self.center_map()
 
@@ -52,8 +66,7 @@ class TilemapManager:
             if asset_path not in self.tilesets:
                 if os.path.exists(asset_path):
                     self.tilesets[asset_path] = TileSet(asset_path, tile_size=self.tile_size)
-
-        
+ 
 
     def center_map(self):
         """Center the loaded map in the camera viewport by adjusting camera offset."""
@@ -89,8 +102,22 @@ class TilemapManager:
         w, h = self.tile_size
         for r, row in enumerate(map_data):
             for c, key in enumerate(row):
-                tile_surf = self.get_tile_surface(key)
+                rotation = 0
+                tile_key = key
+                # support dict entries like {"key": "name", "rotation": 1}
+                if isinstance(key, dict):
+                    tile_key = key.get("key") or key.get("tile")
+                    rotation = int(key.get("rotation", 0) or 0)
+                # support tuple/list like [key, rotation]
+                elif isinstance(key, (list, tuple)) and len(key) >= 1:
+                    tile_key = key[0]
+                    if len(key) > 1:
+                         rotation = int(key[1]) % 4
+
+                tile_surf = self.get_tile_surface(tile_key)
                 if tile_surf:
+                    if rotation != 0:
+                        tile_surf = pygame.transform.rotate(tile_surf, rotation * 90)
                     surface.blit(tile_surf, (ox + c * w, oy + r * h))
 
     # --- TMX support (simple) ---
@@ -210,6 +237,30 @@ class TilemapManager:
                         sh = max(1, int(th * zoom))
                         tile_surf = pygame.transform.scale(tile_surf, (sw, sh))
                     surface.blit(tile_surf, draw_pos)
+
+
+
+    def spawnItem(self, itemKey, machine, rotation=0):
+        """Delegate spawn to the MachineManager."""
+        if hasattr(self, 'machineManager') and self.machineManager is not None:
+            return self.machineManager.spawnItem(itemKey, machine, rotation=rotation)
+        # fallback: simple spawn if no manager available
+        sprite = SpriteManager.load_from_json(itemKey, pos=(0, 0))
+        texture = None
+        if sprite and getattr(sprite, 'frames', None):
+            texture = sprite.frames[0]
+        if texture is None:
+            tw, th = self.tile_size
+            texture = pygame.Surface((tw, th), pygame.SRCALPHA)
+            texture.fill((255, 0, 255))
+        itm = Item(itemKey, texture, [], rotation=rotation)
+        try:
+            tw, th = self.tile_size
+            itm.pos = pygame.Vector2(machine.pos.x * tw, machine.pos.y * th)
+        except Exception:
+            itm.pos = pygame.Vector2(0, 0)
+        return itm
+
 
 
 __all__ = ["TilemapManager", "TileSet"]

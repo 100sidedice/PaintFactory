@@ -1,7 +1,99 @@
 {
-    "conveyor-basic": {
+    "spawner": {
         "image": "Assets/conveyor.png",
         "row": 0,
+        "frames": 1,
+        "frame_offset": 0,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "Item Spawner",
+            "description": "Spawns items at a regular interval.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"spawn",
+            "inputs":{
+                "up": {"type": "none"},
+                "down": {"type": "none"},
+                "left": {"type": "none"},
+                "right": {"type": "output"}
+            }
+        }
+    },
+    "2-way-spawner": {
+        "image": "Assets/conveyor.png",
+        "row": 0,
+        "frames": 1,
+        "frame_offset": 1,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "2-way Item Spawner",
+            "description": "Spawns items at a regular interval.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"spawn",
+            "inputs":{
+                "up": {"type": "none"},
+                "down": {"type": "none"},
+                "left": {"type": "output"},
+                "right": {"type": "output"}
+            }
+        }
+    },
+    "3-way-spawner": {
+        "image": "Assets/conveyor.png",
+        "row": 0,
+        "frames": 1,
+        "frame_offset": 1,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "3-way Item Spawner",
+            "description": "Spawns items at a regular interval.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"spawn",
+            "inputs":{
+                "up": {"type": "none"},
+                "down": {"type": "output"},
+                "left": {"type": "output"},
+                "right": {"type": "output"}
+            }
+        }
+    },
+    "4-way-spawner": {
+        "image": "Assets/conveyor.png",
+        "row": 0,
+        "frames": 1,
+        "frame_offset": 1,
+        "size": [16, 16],
+        "type": "machine",
+
+        "machineData": {
+            "name": "4-way Item Spawner",
+            "description": "Spawns items at a regular interval.",
+            "properties": {
+                "speed": 1.0
+            },
+            "action":"spawn",
+            "inputs":{
+                "up": {"type": "output"},
+                "down": {"type": "output"},
+                "left": {"type": "output"},
+                "right": {"type": "output"}
+            }
+        }
+    },
+    "conveyor-basic": {
+        "image": "Assets/conveyor.png",
+        "row": 1,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -23,7 +115,7 @@
     },
     "conveyor-corner-left": {
         "image": "Assets/conveyor.png",
-        "row": 1,
+        "row": 2,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -45,7 +137,7 @@
     },
     "conveyor-corner-right": {
         "image": "Assets/conveyor.png",
-        "row": 2,
+        "row": 3,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -67,7 +159,7 @@
     },
     "conveyor-three-way": {
         "image": "Assets/conveyor.png",
-        "row": 3,
+        "row": 4,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -89,7 +181,7 @@
     },
     "conveyor-three-way-alternitive": {
         "image": "Assets/conveyor.png",
-        "row": 4,
+        "row": 5,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -111,7 +203,7 @@
     },
     "conveyor-4way": {
         "image": "Assets/conveyor.png",
-        "row": 4,
+        "row": 6,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
