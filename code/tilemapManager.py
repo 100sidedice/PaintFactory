@@ -1,14 +1,6 @@
 import pygame
 import os
-import json
-from data.settings import BASE_DIR, TILE_SIZE, ASSETS_DIR, TILEMAPS_DIR
-
-from machineComponents.item import Item
-from machineComponents.machineComponent import MachineComponent
-from spritesManager import SpriteManager
-from machineManager import MachineManager
-
-from gametimer import Timer
+from data.settings import TILE_SIZE, TILEMAPS_DIR
 
 class TileSet:
     def __init__(self, path, tile_size=(16, 16)):
@@ -25,100 +17,98 @@ class TileSet:
 
 
 class TilemapManager:
-    """Loads tile definitions from data/tiles.json and draws a simple map.
+    """Loads and draws the base TMX tilemap."""
 
-    Map format loader expects a JSON file with a 2D array of tile keys, e.g.:
-      [["conveyor-basic","conveyor-basic"], [null, "conveyor-corner-left"]]
-    """
-
-    def __init__(self, camera=None, tile_size=None, machineManager=None):
+    def __init__(self, camera=None, tile_size=None, preloaded_assets=None):
         self.camera = camera
         self.tile_size = tile_size or TILE_SIZE
-        self.tile_defs = {}
-        self.tilesets = {}
-        self._load_defs()
+        self.preloaded_assets = preloaded_assets or {}
         self.map_data = None
         self.map_layers = []
         self.map_width = 0
         self.map_height = 0
 
-        self.timer = Timer()
-
-        # central machine manager (manages machines and items)
-        if machineManager is None:
-            self.machineManager = MachineManager(self)
-        else:
-            self.machineManager = machineManager
-
         self.center_map()
-
-    def _load_defs(self):
-        defs_path = os.path.join(BASE_DIR, "data", "tiles.json")
-        with open(defs_path, "r", encoding="utf-8") as f:
-            self.tile_defs = json.load(f)
-
-        # preload tileset images referenced by defs (image assumed under Assets/)
-        for key, info in self.tile_defs.items():
-            img_name = info.get("image")
-            if not img_name:
-                continue
-            asset_path = os.path.join(ASSETS_DIR, img_name)
-            if asset_path not in self.tilesets:
-                if os.path.exists(asset_path):
-                    self.tilesets[asset_path] = TileSet(asset_path, tile_size=self.tile_size)
  
 
     def center_map(self):
         """Center the loaded map in the camera viewport by adjusting camera offset."""
-        self.load_from_assets("backgroundmap.tmx")
+        loaded_preloaded = self.load_preloaded_tmx("backgroundmap")
+        if not loaded_preloaded:
+            self.load_from_assets("backgroundmap.tmx")
         # set camera world size from tilemap and fit the world into viewport
         tw, th = self.tile_size
         world_w = self.map_width * tw
         world_h = self.map_height * th
         # compute zoom so the whole map fits and center it; allow zoom-in
-        self.camera.fit_to_world(world_w, world_h, allow_zoom_in=True, margin=0)
+        if self.camera is not None:
+            self.camera.fit_to_world(world_w, world_h, allow_zoom_in=True, margin=0)
 
-    def get_tile_surface(self, key):
-        if key is None:
-            return None
-        info = self.tile_defs.get(key)
-        if not info:
-            return None
-        img_name = info.get("image")
-        row = int(info.get("row", 0))
-        asset_path = os.path.join(BASE_DIR, "Assets", img_name)
-        tileset = self.tilesets.get(asset_path)
-        if not tileset:
-            if os.path.exists(asset_path):
-                tileset = TileSet(asset_path, tile_size=self.tile_size)
-                self.tilesets[asset_path] = tileset
-            else:
-                return None
-        return tileset.tile_at(row, 0)
+    def load_preloaded_tmx(self, map_name: str):
+        """Load TMX from preloaded text/image assets.
 
-    def draw_map(self, surface, map_data, offset=(0, 0)):
-        """Draw a 2D list of tile keys to the given surface at offset."""
-        ox, oy = offset
-        w, h = self.tile_size
-        for r, row in enumerate(map_data):
-            for c, key in enumerate(row):
-                rotation = 0
-                tile_key = key
-                # support dict entries like {"key": "name", "rotation": 1}
-                if isinstance(key, dict):
-                    tile_key = key.get("key") or key.get("tile")
-                    rotation = int(key.get("rotation", 0) or 0)
-                # support tuple/list like [key, rotation]
-                elif isinstance(key, (list, tuple)) and len(key) >= 1:
-                    tile_key = key[0]
-                    if len(key) > 1:
-                         rotation = int(key[1]) % 4
+        Expected keys in `preloaded_assets`:
+        - tilemap.<map_name>.tmx
+        - tilemap.<map_name>.tsx
+        - tilemap.<map_name>.image
+        """
+        tmx_text = self.preloaded_assets.get(f"tilemap.{map_name}.tmx")
+        tsx_text = self.preloaded_assets.get(f"tilemap.{map_name}.tsx")
+        tileset_image = self.preloaded_assets.get(f"tilemap.{map_name}.image")
 
-                tile_surf = self.get_tile_surface(tile_key)
-                if tile_surf:
-                    if rotation != 0:
-                        tile_surf = pygame.transform.rotate(tile_surf, rotation * 90)
-                    surface.blit(tile_surf, (ox + c * w, oy + r * h))
+        if tmx_text is None or tsx_text is None:
+            return False
+
+        self.load_tmx_data(tmx_text, tsx_text, tileset_image=tileset_image)
+        return True
+
+    def load_tmx_data(self, tmx_text: str, tsx_text: str, tileset_image=None):
+        """Load TMX/TSX content directly from strings and optional preloaded image."""
+        import xml.etree.ElementTree as ET
+
+        root = ET.fromstring(tmx_text)
+
+        tilewidth = int(root.attrib.get("tilewidth", self.tile_size[0]))
+        tileheight = int(root.attrib.get("tileheight", self.tile_size[1]))
+        self.tile_size = (tilewidth, tileheight)
+
+        ts = root.find("tileset")
+        firstgid = int(ts.attrib.get("firstgid", 1))
+
+        tsx_root = ET.fromstring(tsx_text)
+        columns = int(tsx_root.attrib.get("columns", 1))
+
+        self._tmx_tileset = {
+            "img_path": None,
+            "image": tileset_image,
+            "firstgid": firstgid,
+            "columns": columns,
+            "tilewidth": tilewidth,
+            "tileheight": tileheight,
+        }
+
+        self.map_layers = []
+        layers = root.findall("layer")
+        for layer in layers:
+            layer_name = layer.attrib.get("name")
+            data_tag = layer.find("data")
+            if data_tag is None or data_tag.text is None:
+                continue
+            data = data_tag.text.strip()
+            rows = [line.strip() for line in data.splitlines() if line.strip()]
+            map_rows = []
+            for row in rows:
+                gids = [int(x) for x in row.split(",") if x != ""]
+                map_rows.append(gids)
+            self.map_layers.append({"name": layer_name, "data": map_rows})
+
+        if self.map_layers:
+            first = self.map_layers[0]["data"]
+            self.map_height = len(first)
+            self.map_width = len(first[0]) if self.map_height else 0
+        else:
+            self.map_height = 0
+            self.map_width = 0
 
     # --- TMX support (simple) ---
     def load_tmx(self, tmx_path):
@@ -152,6 +142,7 @@ class TilemapManager:
         # cache tileset
         self._tmx_tileset = {
             "img_path": img_path,
+            "image": pygame.image.load(img_path).convert_alpha(),
             "firstgid": firstgid,
             "columns": columns,
             "tilewidth": tilewidth,
@@ -203,9 +194,13 @@ class TilemapManager:
         tw = self._tmx_tileset["tilewidth"]
         th = self._tmx_tileset["tileheight"]
         cols = self._tmx_tileset["columns"]
-        img_path = self._tmx_tileset["img_path"]
-
-        tileset_image = pygame.image.load(img_path).convert_alpha()
+        tileset_image = self._tmx_tileset.get("image")
+        if tileset_image is None:
+            img_path = self._tmx_tileset.get("img_path")
+            if not img_path:
+                return
+            tileset_image = pygame.image.load(img_path).convert_alpha()
+            self._tmx_tileset["image"] = tileset_image
         # draw each layer in order
         for layer in self.map_layers:
             for r, row in enumerate(layer["data"]):
@@ -237,29 +232,6 @@ class TilemapManager:
                         sh = max(1, int(th * zoom))
                         tile_surf = pygame.transform.scale(tile_surf, (sw, sh))
                     surface.blit(tile_surf, draw_pos)
-
-
-
-    def spawnItem(self, itemKey, machine, rotation=0):
-        """Delegate spawn to the MachineManager."""
-        if hasattr(self, 'machineManager') and self.machineManager is not None:
-            return self.machineManager.spawnItem(itemKey, machine, rotation=rotation)
-        # fallback: simple spawn if no manager available
-        sprite = SpriteManager.load_from_json(itemKey, pos=(0, 0))
-        texture = None
-        if sprite and getattr(sprite, 'frames', None):
-            texture = sprite.frames[0]
-        if texture is None:
-            tw, th = self.tile_size
-            texture = pygame.Surface((tw, th), pygame.SRCALPHA)
-            texture.fill((255, 0, 255))
-        itm = Item(itemKey, texture, [], rotation=rotation)
-        try:
-            tw, th = self.tile_size
-            itm.pos = pygame.Vector2(machine.pos.x * tw, machine.pos.y * th)
-        except Exception:
-            itm.pos = pygame.Vector2(0, 0)
-        return itm
 
 
 

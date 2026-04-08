@@ -10,16 +10,18 @@
         "machineData": {
             "name": "Item Spawner",
             "description": "Spawns items at a regular interval.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"spawn",
             "inputs":{
                 "up": {"type": "none"},
                 "down": {"type": "none"},
                 "left": {"type": "none"},
                 "right": {"type": "output"}
-            }
+            },
+            "components":[
+                {"name":"SpawnerComponent", "data":{"itemType":"water"}, "offset":[0,0]},
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0, "top":0.125, "bottom":0.125}}}
+            ]
         }
     },
     "2-way-spawner": {
@@ -33,16 +35,20 @@
         "machineData": {
             "name": "2-way Item Spawner",
             "description": "Spawns items at a regular interval.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"spawn",
             "inputs":{
                 "up": {"type": "none"},
                 "down": {"type": "none"},
                 "left": {"type": "output"},
                 "right": {"type": "output"}
-            }
+            },
+            "components":[
+                {"name":"SpawnerComponent", "data":{"itemType":"water"}, "offset":[-0.375,0]},
+                {"name":"SpawnerComponent-1", "data":{"itemType":"water"}, "offset":[0.375,0]},
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0.5, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[-1,0], "collision":{"left":0.5, "right":0, "top":0.125, "bottom":0.125}}}
+            ]
         }
     },
     "3-way-spawner": {
@@ -56,16 +62,22 @@
         "machineData": {
             "name": "3-way Item Spawner",
             "description": "Spawns items at a regular interval.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"spawn",
             "inputs":{
                 "up": {"type": "none"},
                 "down": {"type": "output"},
                 "left": {"type": "output"},
                 "right": {"type": "output"}
-            }
+            },
+            "components":[
+                {"name":"SpawnerComponent", "data":{"itemType":"water"}, "offset":[-0.375,0]},
+                {"name":"SpawnerComponent-1", "data":{"itemType":"water"}, "offset":[0.375,0]},
+                {"name":"SpawnerComponent-2", "data":{"itemType":"water"}, "offset":[0,0.375]},
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0.51, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[-1,0], "collision":{"left":0.51, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.51, "bottom":0}}}
+            ]
         }
     },
     "4-way-spawner": {
@@ -79,16 +91,24 @@
         "machineData": {
             "name": "4-way Item Spawner",
             "description": "Spawns items at a regular interval.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"spawn",
             "inputs":{
                 "up": {"type": "output"},
                 "down": {"type": "output"},
                 "left": {"type": "output"},
                 "right": {"type": "output"}
-            }
+            },
+            "components":[
+                {"name":"SpawnerComponent", "data":{"itemType":"water"}, "offset":[-0.375,0]},
+                {"name":"SpawnerComponent-1", "data":{"itemType":"water"}, "offset":[0.375,0]},
+                {"name":"SpawnerComponent-2", "data":{"itemType":"water"}, "offset":[0,-0.375]},
+                {"name":"SpawnerComponent-3", "data":{"itemType":"water"}, "offset":[0,0.375]},
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0.51, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[-1,0], "collision":{"left":0.51, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,1], "collision":{"left":0.125, "right":0.125, "top":0, "bottom":0.51}}},
+                {"name":"ConveyorComponent-3", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.51, "bottom":0}}}
+            ]
         }
     },
     "conveyor-basic": {
@@ -101,16 +121,17 @@
         "machineData": {
             "name": "Basic Conveyor",
             "description": "A simple conveyor belt that moves items in one direction.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"move",
             "inputs":{
                 "up": {"type": "output"},
                 "down": {"type": "input"},
                 "left": {"type": "none"},
                 "right": {"type": "none"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[0,1], "collision":{"left":0.125, "right":0.125, "top":0, "bottom":0}}}
+            ]
         }
     },
     "conveyor-corner-left": {
@@ -123,16 +144,18 @@
         "machineData": {
             "name": "Corner Conveyor (Left)",
             "description": "A conveyor belt that turns items 90 degrees.",
-            "properties": {
-                "speed": 1.0
-            },
             "action":"move",
             "inputs":{
                 "up": {"type": "none"},
                 "down": {"type": "output"},
                 "left": {"type": "input"},
                 "right": {"type": "none"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0.875, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.125, "bottom":0}}}
+            ]
         }
     },
     "conveyor-corner-right": {
@@ -145,16 +168,18 @@
         "machineData": {
             "name": "Corner Conveyor (Right)",
             "description": "A conveyor belt that turns items 90 degrees.",
-            "properties": {
-                "speed": 1.0
-            },
             "action": "move",
             "inputs": {
                 "up": {"type": "none"},
                 "down": {"type": "output"},
                 "left": {"type": "none"},
                 "right": {"type": "input"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.875, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.125, "bottom":0}}}
+            ]
         }
     },
     "conveyor-three-way": {
@@ -167,16 +192,19 @@
         "machineData": {
             "name": "Three-way Conveyor",
             "description": "A conveyor belt that merges two input lines into one output line.",
-            "properties": {
-                "speed": 1.0
-            },
             "action": "move",
             "inputs": {
                 "up": {"type": "none"},
                 "down": {"type": "output"},
                 "left": {"type": "input"},
                 "right": {"type": "input"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.875, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.875, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.125, "bottom":0}}}
+            ]
         }
     },
     "conveyor-three-way-alternitive": {
@@ -198,7 +226,12 @@
                 "down": {"type": "input"},
                 "left": {"type": "input"},
                 "right": {"type": "output"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[0,1], "collision":{"left":0.125, "right":0.125, "top":0.875, "bottom":0}}}
+            ]
         }
     },
     "conveyor-4way": {
@@ -220,7 +253,13 @@
                 "down": {"type": "output"},
                 "left": {"type": "input"},
                 "right": {"type": "input"}
-            }
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.875, "right":0, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.875, "top":0.125, "bottom":0.125}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0, "bottom":0}}}
+            ]
         }
     }
 }

@@ -1,0 +1,9 @@
+- Update items class
+
+- Make machineManager have a handleEvents method, make spawn event spawn items
+
+- Create the json giving machines their components
+
+- Rotation does not work on conveyors
+
+- Add exit button

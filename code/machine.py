@@ -1,72 +1,72 @@
+import pygame
+
 class Machine:
-    """Represents a placed machine on the map.
+    def __init__(self, name, pos, rotation, data, spriteManager, machineManager):
+        self.name = name
+        self.components = {}
+        self.runtime = 0
+        self.rotation = rotation
+        self.data = data
 
-    - `key` is the tile key (e.g., 'spawner')
-    - `data` is the machineData dict from tiles.json
-    - `pos` is tile coords (x,y)
-    - `rotation` is 0..3
-    - `components` is a list of MachineComponent instances attached to this machine
-    """
-
-    def __init__(self, key, data=None, pos=(0, 0), rotation=0, machineManager=None, sprite=None):
-        self.key = key
-        self.data = data or {}
-        # tile coordinates
-        self.pos = type('P', (), {'x': pos[0], 'y': pos[1]})()
-        try:
-            self.rotation = int(rotation) % 4
-        except Exception:
-            self.rotation = 0
-        self.components = []
+        self.pos = pos
         self.machineManager = machineManager
-        self.sprite = sprite
-        self.state = 'idle'
-
-    def register_component(self, comp):
-        if comp not in self.components:
-            self.components.append(comp)
-            return comp
-
-    def unregister_component(self, comp):
-        try:
-            self.components.remove(comp)
-        except ValueError:
-            pass
-
-    def update(self, dt):
-        for c in list(self.components):
-            try:
-                c.update(dt)
-            except Exception:
-                pass
-
-    def on_tick(self):
-        """Called by the global timer once per tick. Default behavior: delegate
-        to components' on_tick or perform the action defined in `self.data`.
-        """
-        # let components handle ticks first
-        handled = False
-        for c in list(self.components):
-            try:
-                if hasattr(c, 'on_tick'):
-                    c.on_tick()
-                    handled = True
-            except Exception:
-                pass
-
-        if handled:
-            return
-
-        # fallback: simple action from data
-        action = self.data.get('action')
-        if action == 'spawn':
-            item_key = self.data.get('spawn_item') or self.data.get('properties', {}).get('item') or 'water'
-            if self.machineManager is not None:
-                try:
-                    self.machineManager.spawnItem(item_key, self, rotation=self.rotation)
-                except Exception:
-                    pass
-        # other actions (move, transform, etc.) should be implemented in components
+        
+        # not setting self.spriteManager as we just need them to add the sprite, no need to keep a reference to it after that
+        self.sprite = spriteManager.add_sprite(self.name, pos, self.rotation)
 
 
-__all__ = ['Machine']
+    def update(self, items, delta):
+        self.runtime += delta   
+        for component in self.components:
+            # Update continuous components every frame [ex. collision detection]
+            if self.components[component].updateType == "continuous":
+                self.components[component].update(items, delta)
+
+            # Update timed components based on their interval [ex. spawners spawning items every 2 seconds]
+            if self.components[self.component].updateType == "timed":
+                if self.components[component].lastUpdate + self.components[component].updateInterval <= self.runtime:
+                    self.components[component].update(items, delta)
+                    self.components[component].lastUpdate = self.runtime
+
+    def tickUpdate(self, items):
+        for component in self.components:
+            # Update component data every tick [ex. upgrading conveyor speed]
+            if hasattr(self.components[component], "updateData"):
+                self.components[component].updateData(items, 0)
+
+    def addComponent(self, componentName, data, cached=None):
+        if cached is None:
+            cached = {}
+
+        base_name = componentName.split("-", 1)[0]
+
+        component = cached.get(componentName)
+        if component is None:
+            component = cached.get(base_name)
+        if component is None:
+            component = data.machineComponents.get(base_name)
+
+        self.components[componentName] = component
+
+    def removeComponent(self, componentName):
+        if componentName in self.components: del self.components[componentName]
+
+    def getComponent(self, componentName):
+        return self.components.get(componentName, None)
+    
+    def pushEvent(self, event, eventData, componentName = None, component = None):
+        if componentName in self.components:
+            if hasattr(self.components[componentName], "handleEvent"):
+                self.components[componentName].handleEvent(event, eventData, componentName, component)
+
+        self.machineManager.pushEvent(event, eventData, self.name, componentName, component)
+
+
+    def callData(self,dataKey):
+        """Call data related to this machine, such as the sprite or position. Used for components to get data from the machine without needing to know about the machine's internal structure."""
+        match dataKey:
+            case "pos": return self.pos
+            case "rotation": return self.rotation
+            case "rect" :return self.sprite.rect
+            case "sprite": return self.sprite
+            case _: return self.data.get(dataKey, None)

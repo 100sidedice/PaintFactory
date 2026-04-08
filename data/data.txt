@@ -1,0 +1,14 @@
+Main data unit - Summery
+
+{
+    conveyors:image
+    paintbuckets:image
+    sprites:json
+    machines:json
+    tilemap.background.tmx: text
+    tilemap.background.tsx: text
+    tilemap.background.image:image
+    machineComponents:{
+
+    }
+}
