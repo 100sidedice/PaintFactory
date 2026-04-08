@@ -1,8 +1,9 @@
 class Component:
     """Base class for machine components."""
-    def __init__(self, name, machine):
+    def __init__(self, name, machine, componentData=None):
         self.name = name
         self.machine = machine
+        self.componentData = componentData or {}
         self.updateType = "ticks" # Standard update type
 
     def update(self, items, delta):

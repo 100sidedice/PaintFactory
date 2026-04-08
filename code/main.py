@@ -147,6 +147,7 @@ class Game:
             self.data[path] = loaded
 
 
+
     async def start(self):
         global GAME_STATE
         await self.preloadAssets()
@@ -155,15 +156,14 @@ class Game:
 
         self.camera = Camera(WIDTH, HEIGHT)
         self.sprite_manager = SpriteManager(self.camera, preloaded_assets=self.data)
-        self.machine_manager = MachineManager(self.sprite_manager, data=self.data)
+        self.machine_manager = MachineManager(self.sprite_manager, data=self.data, GAME_STATE=GAME_STATE)
         self.tilemap = TilemapManager(self.camera, tile_size=(16, 16), preloaded_assets=self.data)
 
 
         self.machine_manager.tilemap = self.tilemap
 
         # goal
-        self.machine_manager.add_machine("spawner", pos=(4, 5), rotation=0)
-        self.machine_manager.add_machine("conveyor-basic", pos=(5, 5), rotation=3)
+        self.machine_manager.add_machine("4-way-spawner", pos=(5, 5), rotation=0)
 
         self.run()
 

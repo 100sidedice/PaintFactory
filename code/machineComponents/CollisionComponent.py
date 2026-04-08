@@ -3,33 +3,37 @@ import pygame
 
 class CollisionComponent(Component):
     """Component that handles collision detection for a machine."""
-    def __init__(self, name, machine):
-        super().__init__(name, machine)
+    def __init__(self, name, machine, componentData):
+        super().__init__(name, machine, componentData)
         self.collision_rect = machine.callData("rect")  # pygame.Rect defining the collision area
         self.updateType = "continuous" # Update every tick
 
     def update(self, items, delta):
         """Check for collisions with items and handle them."""
+        tw, th = self.machine.callData("sprite").tile_size
         for item in items:
-            if self.collision_rect.collidepoint(item.pos):
-                self.handle_collision(item)
+            item_world_pos = ((item.pos[0] + 0.5) * tw, (item.pos[1] + 0.5) * th)
+            if self.collision_rect.collidepoint(item_world_pos):
+                self.handle_collision(item, delta)
 
-    def handle_collision(self, item):
+    def handle_collision(self, item, delta):
         """Handle the collision with the given item."""
-        self.machine.pushEvent("collision", {"item": item, "edges": self.get_distance_from_edges(item)}, self.name)
-
-        print(f"Collision detected between {self.machine.name} and {item.name}")
+        self.machine.pushEvent("collision", {"item": item, "edges": self.get_distance_from_edges(item), "delta": delta}, self.name)
 
 
     def get_distance_from_edges(self, item):
         """Return the percentage distance of the item from each edge of the collision rect. [i.e. 3-way conveyors can use this to determine which direction to move the item]"""
-        if not self.collision_rect.colliderect(pygame.Rect(item.pos, (1, 1))):
+        tw, th = self.machine.callData("sprite").tile_size
+        item_world_x = (item.pos[0] + 0.5) * tw
+        item_world_y = (item.pos[1] + 0.5) * th
+
+        if not self.collision_rect.collidepoint((item_world_x, item_world_y)):
             return None  # Item is not colliding
 
-        left_dist = item.pos[0] - self.collision_rect.left
-        right_dist = self.collision_rect.right - item.pos[0]
-        top_dist = item.pos[1] - self.collision_rect.top
-        bottom_dist = self.collision_rect.bottom - item.pos[1]
+        left_dist = item_world_x - self.collision_rect.left
+        right_dist = self.collision_rect.right - item_world_x
+        top_dist = item_world_y - self.collision_rect.top
+        bottom_dist = self.collision_rect.bottom - item_world_y
 
         total_width = self.collision_rect.width
         total_height = self.collision_rect.height

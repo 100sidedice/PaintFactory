@@ -5,6 +5,9 @@ class GameState:
         self.data = data
 
         self.state = {
+            "settings":{
+                "max_items": 1000
+            },
             "machines":{
                 "conveyor_speed" : 1.0,
                 "spawner_rate" : 1.0,

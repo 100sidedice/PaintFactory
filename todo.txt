@@ -1,9 +1,10 @@
-- Update items class
-
-- Make machineManager have a handleEvents method, make spawn event spawn items
-
-- Create the json giving machines their components
-
-- Rotation does not work on conveyors
-
+**UI**
 - Add exit button
+- Fix background tilemap to have space for a ui
+- Hover-menus
+
+**Gameplay**
+- Machine sidebar
+- Be able to place machines
+- Be able to drag machines to move them
+- Play button to pause/start simulation
