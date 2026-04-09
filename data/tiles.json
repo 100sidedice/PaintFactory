@@ -182,7 +182,7 @@
             ]
         }
     },
-    "conveyor-three-way": {
+    "conveyor-3way": {
         "image": "Assets/conveyor.png",
         "row": 4,
         "frames": 4,
@@ -201,15 +201,15 @@
             },
             "components":[
                 {"name":"CollisionComponent", "data":{}},
-                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.875, "right":0, "top":0.125, "bottom":0.125}}},
-                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.875, "top":0.125, "bottom":0.125}}},
-                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0.125, "bottom":0}}}
+                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.51, "right":0, "top":0.49, "bottom":0.49}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.51, "top":0.49, "bottom":0.49}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,1], "collision":{"left":0.49, "right":0.49, "top":0.49, "bottom":0}}}
             ]
         }
     },
-    "conveyor-three-way-alternitive": {
+    "conveyor-3way-alt": {
         "image": "Assets/conveyor.png",
-        "row": 5,
+        "row": 6,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -229,14 +229,14 @@
             },
             "components":[
                 {"name":"CollisionComponent", "data":{}},
-                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0, "top":0.125, "bottom":0.125}}},
-                {"name":"ConveyorComponent-1", "data":{"direction":[0,1], "collision":{"left":0.125, "right":0.125, "top":0.875, "bottom":0}}}
+                {"name":"ConveyorComponent", "data":{"direction":[1,0], "collision":{"left":0, "right":0, "top":0.49, "bottom":0.49}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[0,-1], "collision":{"left":0.49, "right":0.49, "top":0.51, "bottom":0}}}
             ]
         }
     },
     "conveyor-4way": {
         "image": "Assets/conveyor.png",
-        "row": 6,
+        "row": 5,
         "frames": 4,
         "size": [16, 16],
         "type": "machine",
@@ -256,9 +256,9 @@
             },
             "components":[
                 {"name":"CollisionComponent", "data":{}},
-                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.875, "right":0, "top":0.125, "bottom":0.125}}},
-                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.875, "top":0.125, "bottom":0.125}}},
-                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.125, "right":0.125, "top":0, "bottom":0}}}
+                {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.51, "right":0, "top":0.49, "bottom":0.49}}},
+                {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.51, "top":0.49, "bottom":0.49}}},
+                {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.49, "right":0.49, "top":0, "bottom":0}}}
             ]
         }
     }
