@@ -1,0 +1,1 @@
+"""Core package for the game's user interface."""

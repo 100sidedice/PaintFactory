@@ -1,5 +1,4 @@
-from Component import Component
-import pygame
+from .Component import Component
 
 class ConveyorComponent(Component):
     """Component that moves items along a conveyor belt."""

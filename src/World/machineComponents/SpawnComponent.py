@@ -1,4 +1,4 @@
-from Component import Component
+from .Component import Component
 
 
 class SpawnComponent(Component):

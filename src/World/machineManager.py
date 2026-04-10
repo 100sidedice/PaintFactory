@@ -1,8 +1,6 @@
-import pygame
-from spritesManager import SpriteManager
-from gametimer import Timer
-from machine import Machine
-from item import Item
+from ..utils.gametimer import Timer
+from .machine import Machine
+from .item import Item
 
 #from main import GAME_STATE
 

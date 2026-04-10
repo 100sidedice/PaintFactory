@@ -1,5 +1,4 @@
-from Component import Component
-import pygame
+from .Component import Component
 
 class CollisionComponent(Component):
     """Component that handles collision detection for a machine."""

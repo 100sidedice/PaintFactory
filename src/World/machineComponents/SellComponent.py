@@ -1,4 +1,4 @@
-from Component import Component
+from .Component import Component
 
 class SellComponent(Component):
     def __init__(self, name, machine, componentData):

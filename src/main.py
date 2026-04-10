@@ -1,20 +1,18 @@
-import pygame # type: ignore
+import pygame 
 import sys
 import os
 import importlib.util
-
-# Add parent directory to path to resolve imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import importlib
 
 from data.settings import *
-from input import Input
-from spritesManager import SpriteManager
-from tilemapManager import TilemapManager
-from machineManager import MachineManager
-from camera import Camera
-from gameState import GameState
+from .UI.input import Input
+from .World.spritesManager import SpriteManager
+from .World.tilemapManager import TilemapManager
+from .World.machineManager import MachineManager
+from .World.camera import Camera
+from .World.gameState import GameState
 
-from support import loadJson
+from .utils.support import loadJson
 
 import asyncio
 
@@ -84,36 +82,22 @@ class Game:
                         raise NotADirectoryError(f"Folder not found: {folder_path}")
 
                     modules = {}
-                    inserted = False
-                    if folder_path not in sys.path:
-                        sys.path.insert(0, folder_path)
-                        inserted = True
-                    try:
-                        for entry in sorted(os.listdir(folder_path)):
-                            full = os.path.join(folder_path, entry)
-                            if not os.path.isfile(full):
-                                continue
-                            if not entry.endswith(".py"):
-                                continue
-                            if entry.startswith("__"):
-                                continue
+                    relative_package = os.path.relpath(folder_path, BASE_DIR).replace(os.sep, ".")
+                    for entry in sorted(os.listdir(folder_path)):
+                        full = os.path.join(folder_path, entry)
+                        if not os.path.isfile(full):
+                            continue
+                        if not entry.endswith(".py"):
+                            continue
+                        if entry.startswith("__"):
+                            continue
 
-                            key = entry[:-3]
-                            mod_name = f"pf_dynamic_{module_prefix}_{key}".replace("-", "_")
-                            spec = importlib.util.spec_from_file_location(mod_name, full)
-                            if spec is None or spec.loader is None:
-                                continue
-                            mod = importlib.util.module_from_spec(spec)
-                            spec.loader.exec_module(mod)
-                            modules[key] = mod
+                        key = entry[:-3]
+                        module_path = f"{relative_package}.{key}"
+                        mod = importlib.import_module(module_path)
+                        modules[key] = mod
 
-                        return modules
-                    finally:
-                        if inserted:
-                            try:
-                                sys.path.remove(folder_path)
-                            except ValueError:
-                                pass
+                    return modules
 
                 loaded = await asyncio.to_thread(_load_modules_from_folder, abs_path, asset_name or "folder")
             else:
@@ -137,7 +121,7 @@ class Game:
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tmx", "name":"tilemap.background.tmx"},
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tsx", "name":"tilemap.background.tsx"},
             {"type":"image","path":"Assets/Tilemaps/backgroundmap.tileset.png", "name":"tilemap.background.image"},
-            {"type":"folder", "path": "code/machineComponents", "name": "machineComponents", "insideType": "module"}
+            {"type":"folder", "path": "src/World/machineComponents", "name": "machineComponents", "insideType": "module"}
         ]
         tasks = [self.load_asset(asset) for asset in needed_assets]
         results = await asyncio.gather(*tasks)
