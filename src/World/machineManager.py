@@ -58,6 +58,7 @@ class MachineManager:
             self.spriteManager.sprites.remove(sprite)
 
         self.items.remove(item)
+        
     def handleEvent(self, event, eventData, machineName=None, componentName=None, component=None):
         """Handle events pushed from machines and their components. This allows for communication between machines without them needing direct references to each other, enabling more modular and flexible machine designs."""
         if event == "spawn":

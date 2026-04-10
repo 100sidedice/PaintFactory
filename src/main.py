@@ -5,6 +5,7 @@ import importlib.util
 import importlib
 
 from data.settings import *
+from .UI.UIManager import UIManager
 from .UI.input import Input
 from .World.spritesManager import SpriteManager
 from .World.tilemapManager import TilemapManager
@@ -121,7 +122,11 @@ class Game:
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tmx", "name":"tilemap.background.tmx"},
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tsx", "name":"tilemap.background.tsx"},
             {"type":"image","path":"Assets/Tilemaps/backgroundmap.tileset.png", "name":"tilemap.background.image"},
-            {"type":"folder", "path": "src/World/machineComponents", "name": "machineComponents", "insideType": "module"}
+            {"type":"folder", "path": "src/World/machineComponents", "name": "machineComponents", "insideType": "module"},
+
+            {"type":"folder", "path": "src/UI/uiComponents", "name": "uiComponents", "insideType": "module"},
+            {"type":"json", "path":"data/ui_elements.json", "name":"uiElements"},
+            {"type":"json", "path":"data/theme_defaults.json", "name":"themeDefaults"}
         ]
         tasks = [self.load_asset(asset) for asset in needed_assets]
         results = await asyncio.gather(*tasks)
@@ -143,6 +148,8 @@ class Game:
         self.machine_manager = MachineManager(self.sprite_manager, data=self.data, GAME_STATE=GAME_STATE)
         self.tilemap = TilemapManager(self.camera, tile_size=(16, 16), preloaded_assets=self.data)
 
+        self.UI_manager = UIManager(self.data, input=Input, surface=self.screen, GAME_STATE=GAME_STATE, game=self)
+        self.UI_manager.loadUIElements()
 
         self.machine_manager.tilemap = self.tilemap
 
@@ -157,7 +164,7 @@ class Game:
         while self.running:
             dt_ms = self.clock.tick(FPS)
             dt = dt_ms / 1000.0
-            Input.update()  # Update input states
+            Input.update(dt)  # Update input states
             if Input.get_key_down(pygame.K_ESCAPE):
                 self.running = False
             self.update(dt)
@@ -168,6 +175,7 @@ class Game:
 
     def update(self, dt):
         # update managers
+        self.UI_manager.update(dt)
         self.sprite_manager.update(dt)
         self.machine_manager.update(dt)
         self.camera.update(None)
@@ -180,6 +188,7 @@ class Game:
         # draw tilemap then sprites
         self.tilemap.draw_tmx(self.screen, offset=(0, 0), camera=self.camera)
         self.sprite_manager.draw(self.screen)
+        self.UI_manager.draw()
             
 async def startgame():
     game = Game()

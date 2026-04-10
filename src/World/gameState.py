@@ -1,4 +1,5 @@
 import json
+from ..utils.path_dict import PathDict
 
 class GameState:
     def __init__(self, data):
@@ -29,21 +30,8 @@ class GameState:
 
     def get(self, key_path, default=None):
         """Get a value from the game state using a key path, e.g. "machines.machine1.pos"."""
-        keys = key_path.split(".")
-        current = self.state
-        for key in keys:
-            if isinstance(current, dict) and key in current:
-                current = current[key]
-            else:
-                return default
-        return current
+        return PathDict.get(self.state, key_path, default)
     
     def set(self, key_path, value):
         """Set a value in the game state using a key path, creating nested dicts as needed."""
-        keys = key_path.split(".")
-        current = self.state
-        for key in keys[:-1]:
-            if key not in current or not isinstance(current[key], dict):
-                current[key] = {}
-            current = current[key]
-        current[keys[-1]] = value
+        PathDict.set(self.state, key_path, value)
