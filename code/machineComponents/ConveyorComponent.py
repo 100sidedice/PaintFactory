@@ -22,21 +22,22 @@ class ConveyorComponent(Component):
  
     def handleEvent(self, event, eventData, componentName, component):
         """Handle events related to items on the conveyor."""
-        if event == "collision":
-            edges = eventData["edges"]
-            if edges["left"] < self.collision["left"]:
-                return
-            if edges["right"] < self.collision["right"]:
-                return
-            if edges["top"] < self.collision["top"]:
-                return
-            if edges["bottom"] < self.collision["bottom"]:
-                return
+        if event != "collision": return
+        
+        edges = eventData["edges"]
+        if edges["left"] < self.collision["left"]:
+            return
+        if edges["right"] < self.collision["right"]:
+            return
+        if edges["top"] < self.collision["top"]:
+            return
+        if edges["bottom"] < self.collision["bottom"]:
+            return
 
-            item = eventData["item"]
-            delta = eventData["delta"]
-            # Start moving the item in the conveyor's direction
-            item.pos = (
-                item.pos[0] + self.direction[0] * self.speed * delta,
-                item.pos[1] + self.direction[1] * self.speed * delta
-            )
+        item = eventData["item"]
+        delta = eventData["delta"]
+        # Start moving the item in the conveyor's direction
+        item.pos = (
+            item.pos[0] + self.direction[0] * self.speed * delta,
+            item.pos[1] + self.direction[1] * self.speed * delta
+        )

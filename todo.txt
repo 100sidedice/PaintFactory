@@ -1,9 +1,13 @@
 **UI**
 - Add exit button
-- Fix background tilemap to have space for a ui
 - Hover-menus
 
 **Gameplay**
+- Add crafter code
+-- Add UI component
+-- Add mergeItem component
+-- Add crafts JSON
+
 - Machine sidebar
 - Be able to place machines
 - Be able to drag machines to move them

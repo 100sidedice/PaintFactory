@@ -164,9 +164,8 @@ class Game:
 
         # goal
         self.machine_manager.add_machine("spawner", pos=(5, 5), rotation=0)
-        self.machine_manager.add_machine("spawner", pos=(7, 5), rotation=2)
-        self.machine_manager.add_machine("spawner", pos=(6, 6), rotation=1)
-        self.machine_manager.add_machine("conveyor-4way", pos=(6, 5), rotation=0)
+        self.machine_manager.add_machine("conveyor", pos=(6, 5), rotation=3)
+        self.machine_manager.add_machine("seller", pos=(7, 5), rotation=0)
 
         self.run()
 

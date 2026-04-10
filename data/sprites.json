@@ -1,37 +1,22 @@
 {
-    "bucket": {
-        "size": [16, 16],
-        "frames": 1,
-        "row": 0,
-        "image": "paintbuckets.png",
-        "type": "item"
-    },
-    "lid": {
-        "size": [16, 16],
-        "frames": 1,
-        "row": 1,
-        "image": "paintbuckets.png",
-        "type": "item"
-    },
     "paint": {
         "size": [16, 16],
         "frames": 1,
         "row": 2,
         "image": "paintbuckets.png",
-        "type": "item"
+        "type": "item",
+        "itemData":{
+            "sell_price": 2
+        }
     },
     "water": {
         "size": [16, 16],
         "frames": 1,
         "row": 3,
         "image": "paintbuckets.png",
-        "type": "item"
-    },
-    "acrylic": {
-        "size": [16, 16],
-        "frames": 1,
-        "row": 4,
-        "image": "paintbuckets.png",
-        "type": "item"
+        "type": "item",
+        "itemData":{
+            "sell_price": 2
+        }
     }
 }

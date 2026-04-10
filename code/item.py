@@ -1,8 +1,9 @@
 class Item:
-    def __init__(self, name, pos=(0, 0), spriteManager=None, id=0):
+    def __init__(self, name, pos=(0, 0), spriteManager=None, info=None, id=0):
         self.name = name
         self.pos = pos
         self.spriteManager = spriteManager
+        self.info = info
         self.sprite = spriteManager.add_sprite(name, pos, 0)
         self.id = id
 

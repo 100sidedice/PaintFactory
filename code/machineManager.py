@@ -46,17 +46,29 @@ class MachineManager:
         self.machines.append(MACHINE)
 
 
-    def spawn_item(self, item_key, pos=(0, 0), base_item = True):
+    def spawn_item(self, item_key, pos=(0, 0), info=None, base_item = True):
         if (len(self.items) < self.GAME_STATE.get("settings.max_items")) or not base_item:
-            self.items.append(Item(item_key, pos=pos, spriteManager=self.spriteManager, id=len(self.items)))
+            self.items.append(Item(item_key, pos=pos, spriteManager=self.spriteManager, info=info, id=len(self.items)))
 
-    def remove_item(self, itemIndex):
-        if 0 <= itemIndex < len(self.items):
-            self.items.pop(itemIndex)
+    def remove_item(self, item = None):
+        if item is None:
+            return
 
+        # Remove sprite so sold/removed items are no longer rendered.
+        sprite = getattr(item, "sprite", None)
+        if sprite is not None and sprite in self.spriteManager.sprites:
+            self.spriteManager.sprites.remove(sprite)
+
+        self.items.remove(item)
     def handleEvent(self, event, eventData, machineName=None, componentName=None, component=None):
         """Handle events pushed from machines and their components. This allows for communication between machines without them needing direct references to each other, enabling more modular and flexible machine designs."""
         if event == "spawn":
             self.spawn_item(eventData["itemName"], eventData["pos"], base_item=False)
+
+        if event == "item_sold":
+            item = eventData["item"]
+            price = eventData["price"]
+            self.GAME_STATE.set("inventory.money", self.GAME_STATE.get("inventory.money") + price)
+            self.remove_item(item)
 
 __all__ = ["MachineManager"]

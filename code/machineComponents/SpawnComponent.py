@@ -17,6 +17,7 @@ class SpawnComponent(Component):
             "spawn",
             {
                 "itemName": self.spawnType,
+                "itemInfo": self.componentData.get("itemInfo", {"type": self.spawnType}),
                 "pos": (
                     self.machine.pos[0] + self.offset[0],
                     self.machine.pos[1] + self.offset[1]
@@ -24,3 +25,7 @@ class SpawnComponent(Component):
             },
             self.name
         )
+
+    def changeSpawnItem(self, newItem):
+        """Change the type of item this spawner spawns."""
+        self.spawnType = newItem

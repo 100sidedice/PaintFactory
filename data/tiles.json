@@ -111,7 +111,7 @@
             ]
         }
     },
-    "conveyor-basic": {
+    "conveyor": {
         "image": "Assets/conveyor.png",
         "row": 1,
         "frames": 4,
@@ -259,6 +259,28 @@
                 {"name":"ConveyorComponent", "data":{"direction":[-1,0], "collision":{"left":0.51, "right":0, "top":0.49, "bottom":0.49}}},
                 {"name":"ConveyorComponent-1", "data":{"direction":[1,0], "collision":{"left":0, "right":0.51, "top":0.49, "bottom":0.49}}},
                 {"name":"ConveyorComponent-2", "data":{"direction":[0,-1], "collision":{"left":0.49, "right":0.49, "top":0, "bottom":0}}}
+            ]
+        }
+    },
+    "seller":{
+        "image": "Assets/conveyor.png",
+        "row": 7,
+        "frames":4,
+        "size":[16,16],
+        "type":"machine",
+        "machineData":{
+            "name": "Seller",
+            "description": "Sells items that collide with it",
+            "action":"sell",
+            "inputs":{
+                "up": {"type": "input"},
+                "down": {"type": "input"},
+                "left": {"type": "input"},
+                "right": {"type": "input"}
+            },
+            "components":[
+                {"name":"CollisionComponent", "data":{}},
+                {"name":"SellComponent", "data":{}}
             ]
         }
     }
