@@ -86,7 +86,28 @@ Draws rectangular border.
 
 ---
 
-## 4) `text`
+## 4) `polygon`
+Draws a polygon from custom vertex points.
+
+```json
+"polygon": {
+  "vertices": [[0, 0], [90, 10], [50, 70]],
+  "color": "#55AAFF",
+  "alpha": 255,
+  "width": 0
+}
+```
+
+Notes:
+- `vertices` are local points `[x, y]`.
+- `width = 0` fills the polygon.
+- `width > 0` draws outline-only polygon stroke.
+- The element `container.size` is auto-updated to the polygon bounding box.
+- In the runtime editor, add `polygon`, then use component value/path editing to edit `vertices`.
+
+---
+
+## 5) `text`
 Renders text and supports editable mode with caret/focus.
 
 ```json
@@ -117,7 +138,7 @@ Alignment options:
 
 ---
 
-## 5) `input`
+## 6) `input`
 Input-triggered event emitter.
 
 ```json
@@ -142,7 +163,7 @@ Optional rule fields:
 
 ---
 
-## 6) `valueReader`
+## 7) `valueReader`
 Checks local variable values each frame and applies actions.
 
 ```json
@@ -157,7 +178,7 @@ Checks local variable values each frame and applies actions.
 
 ---
 
-## 7) `eventReader`
+## 8) `eventReader`
 Consumes emitted events and runs actions.
 
 ```json
@@ -176,13 +197,17 @@ Features:
 - actions:
   - `setValue`
   - `toggleValue`
+  - `emitEvent`
 - dynamic values:
   - `$source.someVar`
   - `$event.somePayloadKey`
 
+See manager/game event names and payload params in:
+- `docs/Development/UI/special_events.md`
+
 ---
 
-## 8) `image`
+## 9) `image`
 Draws preloaded image/spritesheet data.
 
 ```json
@@ -210,7 +235,7 @@ Draws preloaded image/spritesheet data.
 
 ---
 
-## 9) `dynamicValue`
+## 10) `dynamicValue`
 Animates local variables over time.
 
 ```json

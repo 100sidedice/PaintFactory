@@ -1,6 +1,8 @@
 **UI**
-- Add exit button
 - Hover-menus
+- Setting menus
+- Title scene
+- Machine list, placing machines
 
 **Gameplay**
 - Add crafter code

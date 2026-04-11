@@ -11,8 +11,21 @@
         "outline_color": "#4DA3FF"
     },
     "pallet": {
-        "gray1": 0,
-        "gray2": 0,
-        "gray3": 0
+        "gray1": "#2F2F2FFF",
+        "gray2": "#606060FF",
+        "gray3": "#404040FF"
+    },
+    "editor": {
+        "ui": {
+            "snap_guide": "#5ABEFFFF",
+            "cropped_child": "#DC3030FF",
+            "selection_active": "#FFE146FF",
+            "selection_inactive": "#A0CDFFFF",
+            "resize_handle": "#FF8C50FF"
+        },
+        "polygon": {
+            "handle": "#78DCC8FF",
+            "handle_selected": "#FFCD50FF"
+        }
     }
 }

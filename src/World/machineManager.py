@@ -34,6 +34,9 @@ class MachineManager:
             machine.tickUpdate(self.items)
 
     def add_machine(self, machine_key, pos=(0, 0), rotation=0):
+        machine_defs = self.data.get("machines", {}) if isinstance(self.data, dict) else {}
+        if machine_key not in machine_defs:
+            return None
         MACHINE = Machine(machine_key, pos=pos, rotation=rotation, data=self.data, spriteManager=self.spriteManager, machineManager=self)
         for component in self.data["machines"][machine_key]["machineData"]["components"]:
             component_data = dict(component["data"])
@@ -42,6 +45,66 @@ class MachineManager:
             MACHINE.addComponent(component["name"], self.data, componentData=component_data)
         
         self.machines.append(MACHINE)
+        return MACHINE
+
+    def _tile_close(self, a, b, eps=0.001):
+        try:
+            return abs(float(a) - float(b)) <= float(eps)
+        except Exception:
+            return False
+
+    def _machine_matches(self, machine, machine_key=None, pos=None, rotation=None):
+        if machine is None:
+            return False
+
+        if machine_key is not None and str(machine.name) != str(machine_key):
+            return False
+
+        if rotation is not None:
+            try:
+                if int(machine.rotation) % 4 != int(rotation) % 4:
+                    return False
+            except Exception:
+                return False
+
+        if pos is not None:
+            if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                return False
+            mx, my = machine.pos[0], machine.pos[1]
+            px, py = pos[0], pos[1]
+            if (not self._tile_close(mx, px)) or (not self._tile_close(my, py)):
+                return False
+
+        return True
+
+    def remove_machine(self, machine=None, index=None, machine_key=None, pos=None, rotation=None):
+        target = None
+        if machine is not None:
+            target = machine
+        elif index is not None:
+            try:
+                idx = int(index)
+                if 0 <= idx < len(self.machines):
+                    target = self.machines[idx]
+            except Exception:
+                target = None
+        else:
+            for current in reversed(self.machines):
+                if self._machine_matches(current, machine_key=machine_key, pos=pos, rotation=rotation):
+                    target = current
+                    break
+
+        if target is None:
+            return False
+
+        sprite = getattr(target, "sprite", None)
+        if sprite is not None and sprite in self.spriteManager.sprites:
+            self.spriteManager.sprites.remove(sprite)
+
+        if target in self.machines:
+            self.machines.remove(target)
+            return True
+        return False
 
 
     def spawn_item(self, item_key, pos=(0, 0), info=None, base_item = True):

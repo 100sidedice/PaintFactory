@@ -91,6 +91,7 @@ Example:
 ### UI guides
 
 - Component reference: `docs/Development/UI/components.md`
+- Special events & variable params: `docs/Development/UI/special_events.md`
 - Tutorials: `docs/Development/UI/tutorials.md`
 - Runtime editor guide: `docs/Development/UI/tutorials.md#runtime-ui-editor-sidebar`
 

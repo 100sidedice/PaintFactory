@@ -37,6 +37,17 @@
         "outline": {
             "width": 1,
             "color": "#606060"
+        },
+        "eventReader": {
+            "myButton.toggle": {
+                "actions": [
+                    {
+                        "toggleValue": {
+                            "var": "__visible"
+                        }
+                    }
+                ]
+            }
         }
     },
     "screen.settings-bg.settings-menu": {
@@ -50,40 +61,114 @@
             ],
             "size": [1224,748],
             "keywords": [],
-            "opts": {}
+            "opts": {
+                "padding": [40,40]
+            }
         },
         "colorRect": {
-            "color": "#202020"
+            "color": "$theme.pallet.gray1"
         },
         "outline": {
-            "width": -10,
+            "width": 10,
             "color": "#606060"
         }
     },
     "screen.settings-bg.settings-menu.settings-header": {
         "data": {
-            "__visible": true
+            "__visible": true,
+            "__editingText": false
         },
         "container": {
             "pos": [
-                "__left",
+                "__middle",
                 "__top"
             ],
-            "size": [
-                "__right",
-                112
-            ],
+            "size": [529,139],
             "keywords": [
                 "crop"
             ],
             "opts": {}
         },
         "colorRect": {
-            "color": "#181818FF"
+            "color": "$theme.pallet.gray3"
+        },
+        "text": {
+            "align": "middle",
+            "verticalAlign": "middle",
+            "color": "#000000",
+            "bind": "__text",
+            "placeholder": "Settings",
+            "fontSize": 100
         },
         "outline": {
             "width": 10,
-            "color": "#606060"
+            "color": "$theme.pallet.gray2"
+        }
+    },
+    "screen.settings-bg.settings-menu.quit": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [698,497],
+            "size": [446,171],
+            "keywords": [
+                "crop",
+                "input"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#2A2A2A"
+        },
+        "outline": {
+            "width": 10,
+            "color": "#4A4A4AFF"
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "game.exit"
+            }
+        },
+        "text": {
+            "placeholder": "Exit game",
+            "align": "middle",
+            "verticalAlign": "middle",
+            "fontSize": 78
+        }
+    },
+    "screen.settings-bg.settings-menu.quit_copy": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [876,1],
+            "size": [268,65],
+            "keywords": [
+                "crop",
+                "input"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#2A2A2A"
+        },
+        "outline": {
+            "width": 10,
+            "color": "#4A4A4AFF"
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "settings-menu-toggle"
+            }
+        },
+        "text": {
+            "placeholder": "Close",
+            "align": "middle",
+            "verticalAlign": "middle",
+            "fontSize": 34
         }
     }
 }

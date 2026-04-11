@@ -3,6 +3,8 @@ import os
 import math
 import colorsys
 import ast
+import random
+import pyperclip
 
 import pygame
 
@@ -16,10 +18,17 @@ class UIEditor:
             {"key": "size", "type": "Array[int,int]", "default": [120, 40]},
             {"key": "keywords", "type": "Array[String]", "default": []},
             {"key": "opts", "type": "Object", "default": {}},
+            {"key": "padding", "type": "Array[int,int] (opts)", "default": [0, 0]},
         ],
         "colorRect": [
             {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
             {"key": "alpha", "type": "int[0..255]", "default": 255},
+        ],
+        "polygon": [
+            {"key": "vertices", "type": "Array[Array[number,number]]", "default": [[0, 0], [80, 0], [40, 60]]},
+            {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
+            {"key": "alpha", "type": "int[0..255]", "default": 255},
+            {"key": "width", "type": "int (0=fill)", "default": 0},
         ],
         "outline": [
             {"key": "width", "type": "int", "default": 1},
@@ -46,7 +55,22 @@ class UIEditor:
         ],
         "input": [
             {"key": "mouseup.left", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
+            {"key": "mouseup.middle", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
+            {"key": "mouseup.right", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
             {"key": "mousedown.left", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
+            {"key": "mousedown.middle", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
+            {"key": "mousedown.right", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
+        ],
+        "array": [
+            {"key": "x", "type": "int", "default": 1},
+            {"key": "y", "type": "int", "default": 1},
+            {"key": "gap", "type": "Array[int,int]", "default": [0, 0]},
+            {"key": "start", "type": "Array[int,int]", "default": [0, 0]},
+            {"key": "mode", "type": "String[self|template]", "default": "self"},
+            {"key": "path", "type": "String", "default": "${index2}"},
+        ],
+        "copy": [
+            {"key": "value", "type": "String[path]", "default": "screen.base"},
         ],
         "valueReader": [
             {"key": "__rule", "type": "Object[rule]", "default": {"var": "__var", "value": True, "condition": "==", "action": {"setValue": "__var", "value": True}}, "allow_multiple": True},
@@ -54,6 +78,8 @@ class UIEditor:
         "eventReader": [
             {"key": "event.name", "type": "Object[eventRule]", "default": {"actions": [{"setValue": {"var": "__var", "value": True}}]}, "allow_multiple": True},
             {"key": "event.*", "type": "Object[eventRule]", "default": {"actions": [{"toggleValue": {"var": "__flag"}}]}, "allow_multiple": True},
+            {"key": "game.save", "type": "Object[eventRule]", "default": {"actions": [{"emitEvent": {"name": "game.save", "eventData": {"path": "save.json"}}}]}, "allow_multiple": True},
+            {"key": "machine.spawn", "type": "Object[eventRule]", "default": {"actions": [{"emitEvent": {"name": "game.machine.spawn", "eventData": {"machine": "$self.__machineKey", "x": "$self.__spawnX", "y": "$self.__spawnY", "rotation": "$self.__spawnRotation"}}}]}, "allow_multiple": True},
         ],
         "image": [
             {"key": "path", "type": "String[path]", "default": "Assets/paintbuckets.png"},
@@ -77,6 +103,10 @@ class UIEditor:
         "dynamicValue": [
             {"key": "__var", "type": "Object[dynamicRule]", "default": {"type": "loop", "min": 0, "max": 1, "speed": 1.0, "round": False}, "allow_multiple": True},
         ],
+        "hover": [
+            {"key": "on_hover_start", "type": "String[event]", "default": ""},
+            {"key": "on_hover_end", "type": "String[event]", "default": ""},
+        ],
     }
 
     def __init__(self, manager, input_api):
@@ -96,6 +126,8 @@ class UIEditor:
         self.small_font = pygame.font.SysFont("consolas", 14)
 
         self.sidebar_width = 470
+        self.sidebar_collapsed_width = 86
+        self.sidebar_collapsed = False
         self.sidebar_side = "right"
         self.tab = "elements"
         self.tabs = ["elements", "components", "metadata", "state", "theme"]
@@ -135,6 +167,23 @@ class UIEditor:
         self.element_last_click_ms = 0
         self.screen_last_click_ms = 0
         self.screen_last_click_pos = None
+        self.higher_pick_last_path = None
+        self.higher_pick_last_ms = 0
+        self.higher_pick_last_pos = None
+        self.snap_guide_x = None
+        self.snap_guide_y = None
+        self.viewport_tap_path = None
+        self.viewport_tap_ms = 0
+        self.viewport_tap_pos = None
+        self.viewport_tap_count = 0
+        self.polygon_edit_mode = False
+        self.polygon_edit_path = None
+        self.polygon_selected_vertex = -1
+        self.polygon_drag_vertex = -1
+        self.polygon_edit_pending_vertices = None
+        self.polygon_edit_original_vertices = None
+        self.polygon_edit_transform = None
+        self.polygon_edit_dirty = False
 
         self._color_picker_buttons = []
         self.color_picker_open = False
@@ -160,6 +209,7 @@ class UIEditor:
         self.field_rect_cache = {}
         self.field_caret = {}
         self.field_scroll = {}
+        self.field_hscroll = {}
         self.field_sel_anchor = {}
         self.field_sel_active = {}
         self.field_mouse_select_key = None
@@ -247,6 +297,7 @@ class UIEditor:
             or (self.numeric_drag_field is not None)
             or bool(self.component_numeric_drag_path)
             or (self.color_picker_drag_mode is not None)
+            or (self.polygon_drag_vertex >= 0)
         )
 
     def _track_global_state_change_batched(self, force=False):
@@ -508,9 +559,30 @@ class UIEditor:
         names = self.manager.available_component_names()
         if "array" not in names:
             names.append("array")
+        if "copy" not in names:
+            names.append("copy")
         if "data" not in names:
             names.append("data")
+        if "hover" not in names:
+            names.append("hover")
         return sorted(set(names))
+
+    def _component_display_names(self, selected):
+        if selected is None:
+            return []
+        names = selected.component_order[:]
+        if "data" not in names:
+            names = ["data"] + names
+        if isinstance(selected.elmData.get("copy"), str):
+            if "copy" not in names:
+                names.insert(1 if names and names[0] == "data" else 0, "copy")
+        if isinstance(selected.elmData.get("array"), dict):
+            if "array" not in names:
+                insert_at = 1 if names and names[0] == "data" else 0
+                if "copy" in names:
+                    insert_at = max(insert_at, names.index("copy") + 1)
+                names.insert(insert_at, "array")
+        return names
 
     def _component_add_dropdown_rect(self):
         btn = self._component_add_button_rect()
@@ -593,6 +665,9 @@ class UIEditor:
             self._global_redo()
             return
 
+        if ctrl_down and self.input.get_key_down(pygame.K_s, self.passcode):
+            self._apply_active_json_field()
+
         if self.input.get_key_down(pygame.K_F10, self.passcode):
             ui_path = self.manager.export_ui_json(self.export_path)
             theme_path = self.manager.export_theme_defaults_json(self.theme_export_path)
@@ -673,6 +748,9 @@ class UIEditor:
             else:
                 self._set_message(msg)
 
+        if can_reorder and self.input.get_key_down(pygame.K_SLASH, self.passcode):
+            self._duplicate_selected_elements()
+
         if self.input.get_mouse_button_down(1, self.passcode) and self.active_field is not None:
             active_rect = self.field_rect_cache.get(self.active_field)
             if active_rect is not None:
@@ -683,6 +761,10 @@ class UIEditor:
                     self.field_mouse_select_key = None
 
         if self._update_color_picker_input():
+            self._track_global_state_change_batched(force=force_history_capture)
+            return
+
+        if self._update_context_menu_global_input():
             self._track_global_state_change_batched(force=force_history_capture)
             return
 
@@ -704,23 +786,129 @@ class UIEditor:
         if not self.enabled:
             return
 
+        sw, sh = self._screen_size()
+        snap_col = self._editor_theme_color("editor.ui.snap_guide", (90, 190, 255))
+        if self.snap_guide_x is not None:
+            x = int(self.snap_guide_x)
+            pygame.draw.line(surface, snap_col[:3], (x, 0), (x, sh), 1)
+        if self.snap_guide_y is not None:
+            y = int(self.snap_guide_y)
+            pygame.draw.line(surface, snap_col[:3], (0, y), (sw, y), 1)
+
         selected_parent = self._selected_element()
+        cropped_col = self._editor_theme_color("editor.ui.cropped_child", (220, 48, 48))
         if selected_parent is not None:
             for _child, rect in self._fully_cropped_direct_children(selected_parent):
-                pygame.draw.rect(surface, (220, 48, 48), rect, 2)
+                pygame.draw.rect(surface, cropped_col[:3], rect, 2)
 
+        active_sel_col = self._editor_theme_color("editor.ui.selection_active", (255, 225, 70))
+        inactive_sel_col = self._editor_theme_color("editor.ui.selection_inactive", (160, 205, 255))
+        resize_handle_col = self._editor_theme_color("editor.ui.resize_handle", (255, 140, 80))
         for elm in self._selected_elements():
             rect = elm.get_rect()
             if rect is None:
                 continue
             is_active = (elm.path == self.selected_path)
-            border = (255, 225, 70) if is_active else (160, 205, 255)
-            pygame.draw.rect(surface, border, rect, 2)
+            border = active_sel_col if is_active else inactive_sel_col
+            pygame.draw.rect(surface, border[:3], rect, 2)
             if is_active:
                 handle = pygame.Rect(rect.right - 8, rect.bottom - 8, 8, 8)
-                pygame.draw.rect(surface, (255, 140, 80), handle)
+                pygame.draw.rect(surface, resize_handle_col[:3], handle)
+
+        self._draw_polygon_edit_overlay(surface)
 
         self._draw_sidebar(surface)
+
+    def _draw_polygon_edit_overlay(self, surface):
+        if not self.polygon_edit_mode:
+            return
+
+        selected = self._selected_element()
+        if selected is None or selected.path != self.polygon_edit_path:
+            return
+        poly = selected.getComponent("polygon")
+        rect = selected.get_rect()
+        if poly is None or rect is None:
+            return
+
+        vertices = self.polygon_edit_pending_vertices if isinstance(self.polygon_edit_pending_vertices, list) else self._polygon_vertices_resolved(poly)
+        if len(vertices) < 2:
+            return
+
+        transform = self.polygon_edit_transform
+        if transform is None:
+            points, transform = self._polygon_screen_points(rect, vertices)
+            self.polygon_edit_transform = transform
+        else:
+            points = self._polygon_screen_points_from_transform(vertices, transform)
+        if not points:
+            return
+
+        if len(points) >= 3:
+            fill_rgba = None
+            parse_poly_color = getattr(poly, "_parse_color", None)
+            if callable(parse_poly_color):
+                try:
+                    fill_rgba = parse_poly_color(poly.config.get("color", "#FFFFFF"))
+                except Exception:
+                    fill_rgba = None
+            if not (isinstance(fill_rgba, (list, tuple)) and len(fill_rgba) >= 4):
+                fill_rgba = self._color_to_rgba(poly.config.get("color", "#FFFFFF")) or (255, 255, 255, 255)
+
+            alpha_override = poly.config.get("alpha") if isinstance(getattr(poly, "config", None), dict) else None
+            if alpha_override is not None:
+                try:
+                    a = max(0, min(255, int(alpha_override)))
+                    fill_rgba = (int(fill_rgba[0]), int(fill_rgba[1]), int(fill_rgba[2]), a)
+                except Exception:
+                    pass
+
+            int_points = [(int(round(p[0])), int(round(p[1]))) for p in points]
+            if int(fill_rgba[3]) >= 255:
+                pygame.draw.polygon(surface, (int(fill_rgba[0]), int(fill_rgba[1]), int(fill_rgba[2])), int_points, 0)
+            else:
+                preview = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+                pygame.draw.polygon(preview, (int(fill_rgba[0]), int(fill_rgba[1]), int(fill_rgba[2]), int(fill_rgba[3])), int_points, 0)
+                surface.blit(preview, (0, 0))
+
+            outline = selected.getComponent("outline")
+            if outline is not None and isinstance(getattr(outline, "config", None), dict):
+                parse_outline_color = getattr(outline, "_parse_color", None)
+                if callable(parse_outline_color):
+                    stroke_color = parse_outline_color(outline.config.get("color", "#FFFFFF"))
+                else:
+                    stroke_color = (255, 255, 255)
+                try:
+                    stroke = abs(int(outline.config.get("width", 1)))
+                except Exception:
+                    stroke = 1
+                stroke = max(2, int(round(float(stroke) * 1.5)))
+                n = len(int_points)
+                for i in range(n):
+                    a = int_points[i]
+                    b = int_points[(i + 1) % n]
+                    pygame.draw.line(surface, stroke_color, a, b, stroke)
+                corner_r = max(1, int(round(stroke * 0.5)))
+                for p in int_points:
+                    pygame.draw.circle(surface, stroke_color, p, corner_r)
+
+        handle_col = self._editor_theme_color("editor.polygon.handle", (120, 220, 200))
+        handle_sel_col = self._editor_theme_color("editor.polygon.handle_selected", (255, 205, 80))
+        for i, p in enumerate(points):
+            cx = int(round(p[0]))
+            cy = int(round(p[1]))
+            col = handle_sel_col if i == self.polygon_selected_vertex else handle_col
+            pygame.draw.circle(surface, col[:3], (cx, cy), 5, 0)
+
+    def _editor_theme_color(self, path, fallback):
+        value = self._theme_value_get(path)
+        rgba = self._color_to_rgba(value)
+        if rgba is not None:
+            return rgba
+        fb = self._color_to_rgba(fallback)
+        if fb is not None:
+            return fb
+        return (255, 255, 255, 255)
 
     def _ctrl_down(self):
         return self.input.get_key(pygame.K_LCTRL, self.passcode) or self.input.get_key(pygame.K_RCTRL, self.passcode)
@@ -730,6 +918,146 @@ class UIEditor:
 
     def _alt_down(self):
         return self.input.get_key(pygame.K_LALT, self.passcode) or self.input.get_key(pygame.K_RALT, self.passcode)
+
+    def _clipboard_set_text(self, text):
+        value = str(text)
+        try:
+            pyperclip.copy(value)
+            return True, ""
+        except Exception as ex:
+            return False, str(ex)
+
+    def _clipboard_get_text(self):
+        try:
+            text = pyperclip.paste()
+            if isinstance(text, str):
+                return text, ""
+            return "", ""
+        except Exception as ex:
+            return "", str(ex)
+
+
+    def _clipboard_error_hint(self, err):
+        msg = str(err or "").strip()
+        low = msg.lower()
+        if "pyperclip could not find a copy/paste mechanism" in low or "xclip" in low or "xsel" in low or "wl-clipboard" in low:
+            return "Clipboard backend missing (install wl-clipboard, xclip, or xsel)"
+        return "Clipboard unavailable"
+
+    def _select_token_at_caret(self, key, caret):
+        text = str(self.fields.get(key, ""))
+        if not text:
+            self._clear_selection(key, 0)
+            self.field_caret[key] = 0
+            return
+
+        probe = max(0, min(len(text), int(caret)))
+        if probe >= len(text) and probe > 0:
+            probe -= 1
+        while probe > 0 and text[probe].isspace():
+            probe -= 1
+
+        start = self._prev_token_boundary(text, probe + 1)
+        end = self._next_token_boundary(text, start)
+        if end <= start:
+            end = min(len(text), start + 1)
+
+        self._set_selection(key, start, end)
+        self.field_caret[key] = end
+
+    def _apply_active_json_field(self):
+        key = self.active_field
+        if not self._is_json_editor_field(key):
+            return False
+
+        try:
+            parsed = self._parse_value(self.fields.get(key, ""))
+        except Exception:
+            self._set_message("Invalid JSON value")
+            return True
+
+        if key == "element_json":
+            self._apply_selected_element_json(parsed, silent=False, preserve_component_selection=False)
+            return True
+
+        if key == "component_value":
+            selected = self._selected_element()
+            if selected is None:
+                self._set_message("No selected element")
+                return True
+            if self._is_locked_element(selected):
+                self._set_message("Selected element is locked")
+                return True
+            if not self.selected_component:
+                self._set_message("No selected component")
+                return True
+            if not self.selected_component_path:
+                self._set_message("No selected key path")
+                return True
+
+            comp = selected.getComponent(self.selected_component)
+            if self.selected_component == "copy":
+                if self.selected_component_path != "value":
+                    self._set_message("Invalid key path")
+                    return True
+                selected.elmData["copy"] = str(parsed)
+                self._set_message("Component value applied")
+                return True
+
+            if self.selected_component == "array":
+                target = selected.elmData.get("array")
+                if not isinstance(target, dict):
+                    target = {}
+                    selected.elmData["array"] = target
+            elif self.selected_component == "data":
+                target = selected.local_data
+            else:
+                target = comp.config if comp is not None else None
+
+            if not isinstance(target, dict):
+                self._set_message("Missing component")
+                return True
+            if not self._component_value_set(target, self.selected_component_path, parsed):
+                self._set_message("Invalid key path")
+                return True
+
+            if self.selected_component == "data":
+                selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            elif self.selected_component == "array":
+                selected.elmData["array"] = json.loads(json.dumps(target))
+            else:
+                selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
+            self._set_message("Component value applied")
+            return True
+
+        if key == "state_value":
+            game_state = getattr(self.manager, "GAME_STATE", None)
+            if game_state is None:
+                self._set_message("No GAME_STATE available")
+                return True
+            path = str(self.selected_state_path or "").strip()
+            if not path:
+                self._set_message("State key required")
+                return True
+            if self._is_state_value_locked(path):
+                self._set_message("This value is locked")
+                return True
+            game_state.set(path, parsed)
+            self._set_message("GAME_STATE updated")
+            return True
+
+        if key == "theme_value":
+            path = str(self.selected_theme_path or "").strip()
+            if not path:
+                self._set_message("Theme key required")
+                return True
+            if self._theme_value_set(path, parsed):
+                self._set_message("Theme value applied")
+            else:
+                self._set_message("Theme set failed")
+            return True
+
+        return True
 
     def _key_pressed_or_repeat(self, key, initial_delay=0.5, repeat_interval=0.05):
         if self.input.get_key_down(key, self.passcode):
@@ -861,9 +1189,10 @@ class UIEditor:
 
     def _sidebar_rect(self):
         w, h = self._screen_size()
+        current_w = self.sidebar_collapsed_width if self.sidebar_collapsed else self.sidebar_width
         if self.sidebar_side == "left":
-            return pygame.Rect(0, 0, self.sidebar_width, h)
-        return pygame.Rect(max(0, w - self.sidebar_width), 0, self.sidebar_width, h)
+            return pygame.Rect(0, 0, current_w, h)
+        return pygame.Rect(max(0, w - current_w), 0, current_w, h)
 
     def _is_in_sidebar(self, x, y):
         return self._sidebar_rect().collidepoint((x, y))
@@ -1020,6 +1349,316 @@ class UIEditor:
             return True
         return self.manager.is_array_locked(element.path)
 
+    def _is_ancestor_path(self, ancestor_path, child_path):
+        a = str(ancestor_path or "").strip()
+        c = str(child_path or "").strip()
+        if (not a) or (not c) or (a == c):
+            return False
+        return c.startswith(f"{a}.")
+
+    def _clear_polygon_edit_state(self):
+        self.polygon_edit_mode = False
+        self.polygon_edit_path = None
+        self.polygon_selected_vertex = -1
+        self.polygon_drag_vertex = -1
+        self.polygon_edit_pending_vertices = None
+        self.polygon_edit_original_vertices = None
+        self.polygon_edit_transform = None
+        self.polygon_edit_dirty = False
+
+    def _selected_polygon_component(self):
+        selected = self._selected_element()
+        if selected is None:
+            return None, None
+        poly = selected.getComponent("polygon")
+        if poly is None or not isinstance(getattr(poly, "config", None), dict):
+            return selected, None
+        return selected, poly
+
+    def _polygon_vertices_resolved(self, poly_component):
+        if poly_component is None:
+            return []
+        resolver = getattr(poly_component, "_resolved_vertices", None)
+        if callable(resolver):
+            try:
+                raw = resolver()
+                if isinstance(raw, list):
+                    return [(float(v[0]), float(v[1])) for v in raw if isinstance(v, (list, tuple)) and len(v) >= 2]
+            except Exception:
+                return []
+        raw = poly_component.config.get("vertices", [])
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for pair in raw:
+            if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                continue
+            try:
+                out.append((float(pair[0]), float(pair[1])))
+            except Exception:
+                continue
+        return out
+
+    def _polygon_bounds(self, vertices):
+        if not vertices:
+            return None
+        min_x = min(v[0] for v in vertices)
+        min_y = min(v[1] for v in vertices)
+        max_x = max(v[0] for v in vertices)
+        max_y = max(v[1] for v in vertices)
+        return (float(min_x), float(min_y), float(max_x), float(max_y))
+
+    def _polygon_fit_transform(self, rect, bounds):
+        min_x, min_y, max_x, max_y = bounds
+        bw = max(1e-9, float(max_x - min_x))
+        bh = max(1e-9, float(max_y - min_y))
+        scale = min(float(max(1, rect.w)) / bw, float(max(1, rect.h)) / bh)
+        draw_w = bw * scale
+        draw_h = bh * scale
+        off_x = float(rect.x) + (float(rect.w) - draw_w) * 0.5 - (float(min_x) * scale)
+        off_y = float(rect.y) + (float(rect.h) - draw_h) * 0.5 - (float(min_y) * scale)
+        return off_x, off_y, scale
+
+    def _polygon_screen_points(self, rect, vertices):
+        bounds = self._polygon_bounds(vertices)
+        if rect is None or bounds is None:
+            return None, None
+        off_x, off_y, scale = self._polygon_fit_transform(rect, bounds)
+        points = [(off_x + vx * scale, off_y + vy * scale) for (vx, vy) in vertices]
+        return points, (off_x, off_y, scale)
+
+    def _polygon_screen_points_from_transform(self, vertices, transform):
+        if transform is None:
+            return []
+        off_x, off_y, scale = transform
+        return [(off_x + vx * scale, off_y + vy * scale) for (vx, vy) in vertices]
+
+    def _polygon_local_from_screen(self, transform, sx, sy):
+        if transform is None:
+            return 0.0, 0.0
+        off_x, off_y, scale = transform
+        if abs(scale) < 1e-9:
+            return 0.0, 0.0
+        return (float(sx) - off_x) / scale, (float(sy) - off_y) / scale
+
+    def _polygon_find_vertex_hit(self, points, mx, my, radius=8.0):
+        if not points:
+            return -1
+        best = -1
+        best_d2 = float(radius * radius)
+        for i, (px, py) in enumerate(points):
+            dx = float(mx) - float(px)
+            dy = float(my) - float(py)
+            d2 = dx * dx + dy * dy
+            if d2 <= best_d2:
+                best_d2 = d2
+                best = i
+        return best
+
+    def _point_segment_projection(self, ax, ay, bx, by, px, py):
+        abx = float(bx - ax)
+        aby = float(by - ay)
+        apx = float(px - ax)
+        apy = float(py - ay)
+        denom = abx * abx + aby * aby
+        if denom <= 1e-9:
+            return 0.0, float(ax), float(ay)
+        t = max(0.0, min(1.0, (apx * abx + apy * aby) / denom))
+        qx = float(ax) + abx * t
+        qy = float(ay) + aby * t
+        return t, qx, qy
+
+    def _polygon_find_edge_hit(self, points, mx, my, threshold=6.0):
+        n = len(points)
+        if n < 2:
+            return -1, None
+        best_idx = -1
+        best_proj = None
+        best_d2 = float(threshold * threshold)
+        for i in range(n):
+            ax, ay = points[i]
+            bx, by = points[(i + 1) % n]
+            _t, qx, qy = self._point_segment_projection(ax, ay, bx, by, mx, my)
+            dx = float(mx) - qx
+            dy = float(my) - qy
+            d2 = dx * dx + dy * dy
+            if d2 <= best_d2:
+                best_d2 = d2
+                best_idx = i
+                best_proj = (qx, qy)
+        return best_idx, best_proj
+
+    def _polygon_store_vertices(self, element, poly_component, vertices):
+        if element is None or poly_component is None:
+            return
+        poly_component.config["vertices"] = [[int(round(v[0])), int(round(v[1]))] for v in vertices]
+        if isinstance(element.elmData, dict):
+            element.elmData["polygon"] = json.loads(json.dumps(poly_component.config))
+        if self.selected_component == "polygon":
+            if self.selected_component_path == "vertices":
+                self.fields["component_value"] = json.dumps(poly_component.config.get("vertices", []), indent=2)
+            elif self.selected_component_path:
+                value = self._component_path_value()
+                self.fields["component_value"] = json.dumps(value, indent=2)
+
+    def _begin_polygon_viewport_edit(self, element, poly_component, mx, my):
+        rect = element.get_rect() if element is not None else None
+        if element is None or poly_component is None or rect is None:
+            return False
+        vertices = self._polygon_vertices_resolved(poly_component)
+        if len(vertices) < 2:
+            return False
+        points, transform = self._polygon_screen_points(rect, vertices)
+        if not points or transform is None:
+            return False
+
+        self.polygon_edit_mode = True
+        self.polygon_edit_path = element.path
+        self.polygon_drag_vertex = -1
+        self.polygon_edit_pending_vertices = [(float(v[0]), float(v[1])) for v in vertices]
+        self.polygon_edit_original_vertices = [(float(v[0]), float(v[1])) for v in vertices]
+        self.polygon_edit_transform = transform
+        self.polygon_edit_dirty = False
+        self.polygon_selected_vertex = self._polygon_find_vertex_hit(points, mx, my, radius=12.0)
+        return True
+
+    def _accept_polygon_viewport_edit(self):
+        selected = self._selected_element()
+        if selected is None or selected.path != self.polygon_edit_path:
+            self._clear_polygon_edit_state()
+            return False
+        poly = selected.getComponent("polygon")
+        if poly is None:
+            self._clear_polygon_edit_state()
+            return False
+
+        if isinstance(self.polygon_edit_pending_vertices, list) and len(self.polygon_edit_pending_vertices) >= 2:
+            vertices = [(float(v[0]), float(v[1])) for v in self.polygon_edit_pending_vertices]
+            bounds = self._polygon_bounds(vertices)
+            if bounds is not None:
+                min_x, min_y, _max_x, _max_y = bounds
+                normalized = [(vx - min_x, vy - min_y) for (vx, vy) in vertices]
+
+                container = selected.getComponent("container")
+                if container is not None and isinstance(container.config, dict):
+                    pos = container.config.get("pos")
+                    if isinstance(pos, list) and len(pos) >= 2:
+                        if isinstance(pos[0], (int, float)):
+                            pos[0] = int(round(float(pos[0]) + float(min_x)))
+                        if isinstance(pos[1], (int, float)):
+                            pos[1] = int(round(float(pos[1]) + float(min_y)))
+
+                self._polygon_store_vertices(selected, poly, normalized)
+            else:
+                self._polygon_store_vertices(selected, poly, vertices)
+            self._sync_transform_fields()
+        self._clear_polygon_edit_state()
+        return True
+
+    def _register_viewport_tap(self, path, mx, my, now_ms):
+        if (
+            self.viewport_tap_path == path
+            and self.viewport_tap_pos is not None
+            and (int(now_ms) - int(self.viewport_tap_ms)) <= 350
+            and abs(int(mx) - int(self.viewport_tap_pos[0])) <= 8
+            and abs(int(my) - int(self.viewport_tap_pos[1])) <= 8
+        ):
+            self.viewport_tap_count += 1
+        else:
+            self.viewport_tap_count = 1
+        self.viewport_tap_path = path
+        self.viewport_tap_ms = int(now_ms)
+        self.viewport_tap_pos = (int(mx), int(my))
+        return int(self.viewport_tap_count)
+
+    def _update_polygon_viewport_edit(self, mx, my):
+        if not self.polygon_edit_mode:
+            return False
+
+        selected = self._selected_element()
+        if selected is None or selected.path != self.polygon_edit_path:
+            self._clear_polygon_edit_state()
+            return False
+
+        poly = selected.getComponent("polygon")
+        rect = selected.get_rect()
+        if poly is None or rect is None:
+            self._clear_polygon_edit_state()
+            return False
+
+        if self.input.get_key_down(pygame.K_ESCAPE, self.passcode):
+            self._clear_polygon_edit_state()
+            return True
+
+        if self.input.get_key_down(pygame.K_RETURN, self.passcode) or self.input.get_key_down(pygame.K_KP_ENTER, self.passcode):
+            self._accept_polygon_viewport_edit()
+            return True
+
+        if not isinstance(self.polygon_edit_pending_vertices, list):
+            self.polygon_edit_pending_vertices = self._polygon_vertices_resolved(poly)
+
+        vertices = self.polygon_edit_pending_vertices
+        if len(vertices) < 2:
+            self._clear_polygon_edit_state()
+            return False
+
+        transform = self.polygon_edit_transform
+        if transform is None:
+            points, transform = self._polygon_screen_points(rect, vertices)
+            self.polygon_edit_transform = transform
+        else:
+            points = self._polygon_screen_points_from_transform(vertices, transform)
+        if points is None or transform is None:
+            return False
+
+        if self.polygon_selected_vertex >= len(vertices):
+            self.polygon_selected_vertex = len(vertices) - 1
+
+        if self.input.get_key_down(pygame.K_x, self.passcode) and self.polygon_selected_vertex >= 0:
+            if len(vertices) > 2:
+                idx = int(self.polygon_selected_vertex)
+                del vertices[idx]
+                self.polygon_selected_vertex = min(idx, len(vertices) - 1)
+                self.polygon_edit_dirty = True
+                return True
+
+        if self.input.get_mouse_button_up(1, self.passcode):
+            self.polygon_drag_vertex = -1
+
+        if self.polygon_drag_vertex >= 0 and self.input.get_mouse_button(1, self.passcode):
+            idx = int(self.polygon_drag_vertex)
+            if 0 <= idx < len(vertices):
+                vx, vy = self._polygon_local_from_screen(transform, mx, my)
+                vertices[idx] = (vx, vy)
+                self.polygon_edit_dirty = True
+                return True
+
+        if self.input.get_mouse_button_down(1, self.passcode):
+            hit_idx = self._polygon_find_vertex_hit(points, mx, my, radius=8.0)
+            if hit_idx >= 0:
+                self.polygon_selected_vertex = hit_idx
+                self.polygon_drag_vertex = hit_idx
+                self.dragging = False
+                self.resizing = False
+                return True
+
+            edge_idx, proj = self._polygon_find_edge_hit(points, mx, my, threshold=6.0)
+            if edge_idx >= 0 and proj is not None:
+                vx, vy = self._polygon_local_from_screen(transform, proj[0], proj[1])
+                insert_at = int(edge_idx) + 1
+                vertices.insert(insert_at, (vx, vy))
+                self.polygon_selected_vertex = insert_at
+                self.polygon_drag_vertex = insert_at
+                self.polygon_edit_dirty = True
+                self.dragging = False
+                self.resizing = False
+                return True
+
+            self.polygon_drag_vertex = -1
+            return True
+
+        return False
+
     def _is_static_container_element(self, element):
         if element is None:
             return False
@@ -1097,6 +1736,204 @@ class UIEditor:
             return None
         return element.getComponent("container")
 
+    def _direct_sibling_rects(self, element):
+        if element is None:
+            return []
+        parent = element.get_parent()
+        if parent is None:
+            return []
+        out = []
+        for sibling in self.manager.get_children(parent.path, direct_only=True):
+            if sibling is None or sibling is element or (not sibling.is_visible()):
+                continue
+            srect = sibling.get_rect()
+            if srect is not None:
+                out.append(srect)
+        return out
+
+    def _direct_parent_has_padding(self, element):
+        if element is None:
+            return False
+        parent = element.get_parent()
+        if parent is None:
+            return False
+        parent_container = parent.getComponent("container")
+        if parent_container is None:
+            return False
+        parent_rect = parent.get_rect()
+        if parent_rect is None:
+            return False
+        content_rect = parent_container.get_content_rect(parent_rect)
+        return (content_rect.w < parent_rect.w) or (content_rect.h < parent_rect.h)
+
+    def _direct_parent_padding_xy(self, element):
+        if element is None:
+            return 0, 0
+        parent = element.get_parent()
+        if parent is None:
+            return 0, 0
+        parent_container = parent.getComponent("container")
+        if parent_container is None:
+            return 0, 0
+        parent_rect = parent.get_rect()
+        if parent_rect is None:
+            return 0, 0
+        content_rect = parent_container.get_content_rect(parent_rect)
+        pad_x = max(0, int((parent_rect.w - content_rect.w) // 2))
+        pad_y = max(0, int((parent_rect.h - content_rect.h) // 2))
+        return pad_x, pad_y
+
+    def _projected_bounds_for_size(self, element, base_rect, test_w, test_h):
+        if base_rect is None:
+            return None
+        container = self._ensure_container(element)
+        cfg_pos = container.config.get("pos", [0, 0]) if container is not None else [0, 0]
+        x_token = str(cfg_pos[0]).lower() if isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 0 and isinstance(cfg_pos[0], str) else None
+        y_token = str(cfg_pos[1]).lower() if isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 1 and isinstance(cfg_pos[1], str) else None
+
+        w = float(max(1, int(test_w)))
+        h = float(max(1, int(test_h)))
+
+        if x_token == "__middle":
+            left = float(base_rect.centerx) - (w / 2.0)
+        elif x_token == "__right":
+            left = float(base_rect.right) - w
+        else:
+            left = float(base_rect.x)
+
+        if y_token == "__middle":
+            top = float(base_rect.centery) - (h / 2.0)
+        elif y_token == "__bottom":
+            top = float(base_rect.bottom) - h
+        else:
+            top = float(base_rect.y)
+
+        return (left, top, left + w, top + h)
+
+    def _position_anchor_tokens(self, element):
+        container = self._ensure_container(element)
+        cfg_pos = container.config.get("pos", [0, 0]) if container is not None else [0, 0]
+        x_token = str(cfg_pos[0]).lower() if isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 0 and isinstance(cfg_pos[0], str) else ""
+        y_token = str(cfg_pos[1]).lower() if isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 1 and isinstance(cfg_pos[1], str) else ""
+        return x_token, y_token
+
+    def _max_parent_width_for_anchor(self, rect, area_rect, x_token):
+        if rect is None or area_rect is None:
+            return 1
+        if x_token == "__right":
+            return max(1, int(float(rect.right) - float(area_rect.left)))
+        if x_token == "__middle":
+            left_span = float(rect.centerx) - float(area_rect.left)
+            right_span = float(area_rect.right) - float(rect.centerx)
+            return max(1, int(2.0 * max(0.0, min(left_span, right_span))))
+        return max(1, int(float(area_rect.right) - float(rect.left)))
+
+    def _max_parent_height_for_anchor(self, rect, area_rect, y_token):
+        if rect is None or area_rect is None:
+            return 1
+        if y_token == "__bottom":
+            return max(1, int(float(rect.bottom) - float(area_rect.top)))
+        if y_token == "__middle":
+            top_span = float(rect.centery) - float(area_rect.top)
+            bottom_span = float(area_rect.bottom) - float(rect.centery)
+            return max(1, int(2.0 * max(0.0, min(top_span, bottom_span))))
+        return max(1, int(float(area_rect.bottom) - float(rect.top)))
+
+    def _bounds_overlap_with_gap(self, bounds, srect, gap_x, gap_y):
+        if bounds is None or srect is None:
+            return False
+        left, top, right, bottom = bounds
+        return (((right + gap_x) > srect.left) and ((left - gap_x) < srect.right) and ((bottom + gap_y) > srect.top) and ((top - gap_y) < srect.bottom))
+
+    def _max_width_without_overlap(self, element, base_rect, current_w, fixed_h, srect, gap_x, gap_y):
+        if current_w <= 1:
+            return None
+
+        def safe(w):
+            b = self._projected_bounds_for_size(element, base_rect, w, fixed_h)
+            return (not self._bounds_overlap_with_gap(b, srect, gap_x, gap_y))
+
+        if safe(current_w):
+            return int(current_w)
+        if not safe(1):
+            return None
+
+        lo, hi = 1, int(current_w)
+        best = 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if safe(mid):
+                best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return int(best)
+
+    def _max_height_without_overlap(self, element, base_rect, fixed_w, current_h, srect, gap_x, gap_y):
+        if current_h <= 1:
+            return None
+
+        def safe(h):
+            b = self._projected_bounds_for_size(element, base_rect, fixed_w, h)
+            return (not self._bounds_overlap_with_gap(b, srect, gap_x, gap_y))
+
+        if safe(current_h):
+            return int(current_h)
+        if not safe(1):
+            return None
+
+        lo, hi = 1, int(current_h)
+        best = 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if safe(mid):
+                best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return int(best)
+
+    def _clamp_drag_delta_to_siblings(self, element, dx, dy):
+        if not self._direct_parent_has_padding(element):
+            return float(dx), float(dy)
+
+        rect = element.get_rect() if element is not None else None
+        if rect is None:
+            return float(dx), float(dy)
+
+        clamped_dx = float(dx)
+        clamped_dy = float(dy)
+        gap_x, gap_y = self._direct_parent_padding_xy(element)
+        siblings = self._direct_sibling_rects(element)
+
+        # Clamp X first using current Y span.
+        for srect in siblings:
+            vertically_overlaps = not ((rect.bottom + gap_y) <= srect.top or (rect.top - gap_y) >= srect.bottom)
+            if not vertically_overlaps:
+                continue
+            if clamped_dx > 0 and rect.right <= srect.left:
+                limit = float((srect.left - gap_x) - rect.right)
+                clamped_dx = min(clamped_dx, limit)
+            elif clamped_dx < 0 and rect.left >= srect.right:
+                limit = float((srect.right + gap_x) - rect.left)
+                clamped_dx = max(clamped_dx, limit)
+
+        # Then clamp Y using post-X span.
+        moved_left = float(rect.left) + clamped_dx
+        moved_right = float(rect.right) + clamped_dx
+        for srect in siblings:
+            horizontally_overlaps = not ((moved_right + gap_x) <= srect.left or (moved_left - gap_x) >= srect.right)
+            if not horizontally_overlaps:
+                continue
+            if clamped_dy > 0 and rect.bottom <= srect.top:
+                limit = float((srect.top - gap_y) - rect.bottom)
+                clamped_dy = min(clamped_dy, limit)
+            elif clamped_dy < 0 and rect.top >= srect.bottom:
+                limit = float((srect.bottom + gap_y) - rect.top)
+                clamped_dy = max(clamped_dy, limit)
+
+        return clamped_dx, clamped_dy
+
     def _set_local_position(self, element, x, y):
         if self._is_locked_element(element):
             return
@@ -1108,8 +1945,21 @@ class UIEditor:
         x_is_anchor = isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 0 and isinstance(cfg_pos[0], str) and str(cfg_pos[0]).startswith("__")
         y_is_anchor = isinstance(cfg_pos, (list, tuple)) and len(cfg_pos) > 1 and isinstance(cfg_pos[1], str) and str(cfg_pos[1]).startswith("__")
 
-        local_x = float(x)
-        local_y = float(y)
+        child_rect = element.get_rect()
+        target_x = float(x)
+        target_y = float(y)
+        target_x, target_y = self._snap_target_to_sibling_alignment(element, target_x, target_y)
+        if child_rect is not None:
+            drag_dx = target_x - float(child_rect.x)
+            drag_dy = target_y - float(child_rect.y)
+            drag_dx, drag_dy = self._clamp_drag_delta_to_siblings(element, drag_dx, drag_dy)
+            target_x = float(child_rect.x) + float(drag_dx)
+            target_y = float(child_rect.y) + float(drag_dy)
+
+        local_x = target_x
+        local_y = target_y
+        child_w = float(child_rect.w) if child_rect is not None else 0.0
+        child_h = float(child_rect.h) if child_rect is not None else 0.0
 
         parent = element.get_parent()
         if parent is not None:
@@ -1118,6 +1968,19 @@ class UIEditor:
                 ox, oy = parent_container.get_child_origin(element)
                 local_x -= ox
                 local_y -= oy
+
+                # If direct parent has padding, keep child inside parent's content rect.
+                parent_rect = parent.get_rect()
+                if parent_rect is not None:
+                    content_rect = parent_container.get_content_rect(parent_rect)
+                    has_padding = (content_rect.w < parent_rect.w) or (content_rect.h < parent_rect.h)
+                    if has_padding:
+                        if not x_is_anchor:
+                            max_x = max(0.0, float(content_rect.w) - child_w)
+                            local_x = max(0.0, min(local_x, max_x))
+                        if not y_is_anchor:
+                            max_y = max(0.0, float(content_rect.h) - child_h)
+                            local_y = max(0.0, min(local_y, max_y))
             else:
                 parent_rect = parent.get_rect()
                 if parent_rect is not None:
@@ -1138,9 +2001,87 @@ class UIEditor:
         cfg_size = container.config.get("size", [0, 0])
         w_is_anchor = isinstance(cfg_size, (list, tuple)) and len(cfg_size) > 0 and isinstance(cfg_size[0], str) and str(cfg_size[0]).startswith("__")
         h_is_anchor = isinstance(cfg_size, (list, tuple)) and len(cfg_size) > 1 and isinstance(cfg_size[1], str) and str(cfg_size[1]).startswith("__")
+        x_pos_token, y_pos_token = self._position_anchor_tokens(element)
 
         size_w = cfg_size[0] if w_is_anchor else max(1, int(w))
         size_h = cfg_size[1] if h_is_anchor else max(1, int(h))
+
+        # If direct parent has padding, keep resized child inside parent's content rect.
+        parent = element.get_parent()
+        if parent is not None:
+            parent_container = parent.getComponent("container")
+            rect = element.get_rect()
+            if parent_container is not None and rect is not None:
+                parent_rect = parent.get_rect()
+                if parent_rect is not None:
+                    content_rect = parent_container.get_content_rect(parent_rect)
+                    has_padding = (content_rect.w < parent_rect.w) or (content_rect.h < parent_rect.h)
+                    if has_padding:
+                        # Use content bounds for collision limits so padded edges are
+                        # respected even when the position axis is anchored.
+                        area_x = content_rect
+                        area_y = content_rect
+                        if not w_is_anchor:
+                            max_w = self._max_parent_width_for_anchor(rect, area_x, x_pos_token)
+                            size_w = max(1, min(int(size_w), int(max_w)))
+                        if not h_is_anchor:
+                            max_h = self._max_parent_height_for_anchor(rect, area_y, y_pos_token)
+                            size_h = max(1, min(int(size_h), int(max_h)))
+
+            # Keep resize from touching/intersecting direct siblings.
+            if rect is not None and self._direct_parent_has_padding(element):
+                siblings = self._direct_sibling_rects(element)
+                gap_x, gap_y = self._direct_parent_padding_xy(element)
+                new_w = int(size_w) if not w_is_anchor else int(rect.w)
+                new_h = int(size_h) if not h_is_anchor else int(rect.h)
+
+                # Resolve each concrete overlap by shrinking the axis that needs the
+                # least change for that overlap. Repeat because one correction can
+                # expose/clear another overlap.
+                for _ in range(8):
+                    changed = False
+                    for srect in siblings:
+                        bounds = self._projected_bounds_for_size(element, rect, new_w, new_h)
+                        if not self._bounds_overlap_with_gap(bounds, srect, gap_x, gap_y):
+                            continue
+
+                        candidates = []
+                        if not w_is_anchor:
+                            target_w = self._max_width_without_overlap(element, rect, new_w, new_h, srect, gap_x, gap_y)
+                            if target_w is not None:
+                                reduce_w = max(0, int(new_w - target_w))
+                                candidates.append((reduce_w, "w", target_w))
+                        if not h_is_anchor:
+                            target_h = self._max_height_without_overlap(element, rect, new_w, new_h, srect, gap_x, gap_y)
+                            if target_h is not None:
+                                reduce_h = max(0, int(new_h - target_h))
+                                candidates.append((reduce_h, "h", target_h))
+
+                        if not candidates:
+                            continue
+
+                        candidates.sort(key=lambda item: item[0])
+                        _delta, axis, target = candidates[0]
+                        if axis == "w":
+                            if target < new_w:
+                                new_w = target
+                                changed = True
+                        else:
+                            if target < new_h:
+                                new_h = target
+                                changed = True
+
+                    if not changed:
+                        break
+
+                new_w = max(1, int(new_w))
+                new_h = max(1, int(new_h))
+
+                if not w_is_anchor:
+                    size_w = new_w
+                if not h_is_anchor:
+                    size_h = new_h
+
         container.config["size"] = [size_w, size_h]
 
     def _sync_transform_fields(self):
@@ -1184,6 +2125,17 @@ class UIEditor:
             if self.input.get_mouse_button_up(1, self.passcode):
                 self.dragging = False
                 self.resizing = False
+                self.snap_guide_x = None
+                self.snap_guide_y = None
+            return
+
+        if self.input.get_mouse_button_down(3, self.passcode) and not self._is_in_sidebar(mx, my):
+            selected_paths = [elm.path for elm in self._selected_elements() if elm is not None and not self._is_locked_element(elm)]
+            if selected_paths:
+                self._open_context_menu("selection", {"paths": selected_paths}, (mx, my))
+                return
+
+        if self._update_polygon_viewport_edit(mx, my):
             return
 
         if self.input.get_mouse_button_down(1, self.passcode):
@@ -1191,6 +2143,25 @@ class UIEditor:
             picked = self._pick_element((mx, my))
             # Detect double-tap on the background (screen) to clear selection.
             now = pygame.time.get_ticks()
+
+            if (
+                (not self._ctrl_down())
+                and picked is not None
+                and current_selected is not None
+                and picked.path == current_selected.path
+                and current_selected.getComponent("polygon") is not None
+            ):
+                tap_count = self._register_viewport_tap(picked.path, mx, my, now)
+                if tap_count >= 3:
+                    if self.polygon_edit_mode and self.polygon_edit_path == picked.path:
+                        self._clear_polygon_edit_state()
+                    else:
+                        poly = current_selected.getComponent("polygon")
+                        self._begin_polygon_viewport_edit(current_selected, poly, mx, my)
+                    self.dragging = False
+                    self.resizing = False
+                    return
+
             was_background_click = picked is None and not self._is_in_sidebar(mx, my)
             if was_background_click:
                 is_double_bg = (
@@ -1210,6 +2181,25 @@ class UIEditor:
                     self.dragging = False
                     self.resizing = False
                     return
+            effective_picked = picked
+            if (
+                (not self._ctrl_down())
+                and picked is not None
+                and current_selected is not None
+                and self._is_ancestor_path(picked.path, current_selected.path)
+            ):
+                is_double_higher = (
+                    self.higher_pick_last_path == picked.path
+                    and self.higher_pick_last_pos is not None
+                    and (now - int(self.higher_pick_last_ms)) <= 350
+                    and abs(mx - int(self.higher_pick_last_pos[0])) <= 8
+                    and abs(my - int(self.higher_pick_last_pos[1])) <= 8
+                )
+                self.higher_pick_last_path = picked.path
+                self.higher_pick_last_ms = now
+                self.higher_pick_last_pos = (mx, my)
+                if not is_double_higher:
+                    effective_picked = current_selected
             if self._ctrl_down() and picked is not None:
                 if picked.path in self.selected_paths:
                     self.selected_paths.remove(picked.path)
@@ -1219,8 +2209,8 @@ class UIEditor:
                     self.selected_paths.add(picked.path)
                     self.selected_path = picked.path
             else:
-                if picked is not None:
-                    self.selected_path = picked.path
+                if effective_picked is not None:
+                    self.selected_path = effective_picked.path
                     self.selected_paths = {self.selected_path}
                 elif current_selected is not None and not self._is_locked_element(current_selected):
                     # Clicking static/background keeps current selection so drag/resize can start immediately.
@@ -1233,7 +2223,9 @@ class UIEditor:
             self._sync_transform_fields()
             self._load_selected_element_json()
             self.selected_component = None
-            drag_target = picked if picked is not None else (current_selected if current_selected is not None else None)
+            if self.selected_path != self.polygon_edit_path:
+                self._clear_polygon_edit_state()
+            drag_target = effective_picked if effective_picked is not None else (current_selected if current_selected is not None else None)
             if drag_target is not None:
                 if self._is_locked_element(drag_target):
                     self.dragging = False
@@ -1249,6 +2241,8 @@ class UIEditor:
         if self.input.get_mouse_button_up(1, self.passcode):
             self.dragging = False
             self.resizing = False
+            self.snap_guide_x = None
+            self.snap_guide_y = None
 
         selected = self._selected_element()
         selected_group = [elm for elm in self._selected_elements() if not self._is_locked_element(elm)]
@@ -1288,9 +2282,19 @@ class UIEditor:
             self._wrap_mouse_if_needed(world_only=True)
         elif self.resizing:
             if selected is not None and rect is not None:
-                self._set_size(selected, rect.w + dx, rect.h + dy)
+                size_dx = dx
+                size_dy = dy
+                x_token, y_token = self._position_anchor_tokens(selected)
+                if x_token == "__right":
+                    size_dx = -size_dx
+                if y_token == "__bottom":
+                    size_dy = -size_dy
+                self._set_size(selected, rect.w + size_dx, rect.h + size_dy)
             self._sync_transform_fields()
             self._wrap_mouse_if_needed(world_only=True)
+        else:
+            self.snap_guide_x = None
+            self.snap_guide_y = None
 
     def _update_keyboard_transform(self):
         selected = self._selected_element()
@@ -1322,6 +2326,290 @@ class UIEditor:
         if self.input.get_key_down(pygame.K_DOWN, self.passcode):
             self._set_local_position(selected, rect.x, rect.y + step)
         self._sync_transform_fields()
+
+    def _duplicate_selected_elements(self):
+        selected = [elm for elm in self._selected_elements() if elm is not None and not self._is_locked_element(elm)]
+        if not selected:
+            self._set_message("No selected element")
+            return False
+
+        selected_paths = {elm.path for elm in selected}
+        roots = []
+        for path in sorted(selected_paths, key=lambda p: p.count(".")):
+            if any(path.startswith(f"{r}.") for r in roots):
+                continue
+            roots.append(path)
+
+        new_paths = []
+        total_created = 0
+        for path in roots:
+            ok, msg, new_root, created = self.manager.duplicate_element_tree(path)
+            if not ok:
+                self._set_message(msg)
+                continue
+            new_paths.append(new_root)
+            total_created += int(created)
+
+        if not new_paths:
+            return False
+        self.selected_paths = set(new_paths)
+        self.selected_path = new_paths[-1]
+        self._sync_transform_fields()
+        self._load_selected_element_json()
+        self._set_message(f"Duplicated {total_created} element(s)")
+        return True
+
+    def _delete_selected_elements(self):
+        selected = [elm for elm in self._selected_elements() if elm is not None and not self._is_locked_element(elm)]
+        if not selected:
+            self._set_message("No selected element")
+            return False
+
+        selected_paths = {elm.path for elm in selected}
+        roots = []
+        for path in sorted(selected_paths, key=lambda p: p.count(".")):
+            if any(path.startswith(f"{r}.") for r in roots):
+                continue
+            roots.append(path)
+
+        render_stack_before = [elm.path for elm in self.manager.flattenElements()]
+        removed_set = set()
+        total_removed = 0
+        first_removed = None
+        for path in sorted(roots, key=lambda p: p.count("."), reverse=True):
+            if first_removed is None:
+                first_removed = path
+            removed_set.add(path)
+            removed_set.update({p for p in self.manager.ui_elements.keys() if p.startswith(f"{path}.")})
+            total_removed += int(self.manager.remove_element_tree(path) or 0)
+
+        if total_removed <= 0:
+            self._set_message("No selected element removed")
+            return False
+
+        self.selected_component = None
+        self.selected_component_path = ""
+        self.fields["component_value"] = ""
+        self.selected_paths = {p for p in self.selected_paths if self.manager.getElement(p) is not None and p not in removed_set}
+        next_path = None
+        if first_removed is not None:
+            next_path = self._next_selection_after_remove(first_removed, render_order_before=render_stack_before, removed_paths=removed_set)
+        if next_path and self.manager.getElement(next_path) is not None:
+            self.selected_path = next_path
+            self.selected_paths.add(next_path)
+            self._sync_transform_fields()
+            self._load_selected_element_json()
+        else:
+            self.selected_path = None
+            self.selected_paths.clear()
+
+        self._set_message(f"Deleted {total_removed} element(s)")
+        return True
+
+    def _selection_operation_elements(self, min_count=1):
+        elements = [elm for elm in self._selected_elements() if elm is not None and not self._is_locked_element(elm)]
+        if len(elements) < int(min_count):
+            self._set_message("Not enough selected elements")
+            return []
+        return elements
+
+    def _selection_bounds(self, elements):
+        rects = [elm.get_rect() for elm in elements]
+        rects = [r for r in rects if r is not None]
+        if not rects:
+            return None
+        left = min(r.left for r in rects)
+        top = min(r.top for r in rects)
+        right = max(r.right for r in rects)
+        bottom = max(r.bottom for r in rects)
+        return pygame.Rect(left, top, max(1, right - left), max(1, bottom - top))
+
+    def _selection_align(self, mode):
+        elements = self._selection_operation_elements(min_count=2)
+        if not elements:
+            return
+        bounds = self._selection_bounds(elements)
+        if bounds is None:
+            return
+        for elm in elements:
+            rect = elm.get_rect()
+            if rect is None:
+                continue
+            tx = rect.x
+            ty = rect.y
+            if mode == "left":
+                tx = bounds.left
+            elif mode == "right":
+                tx = bounds.right - rect.w
+            elif mode == "centerx":
+                tx = bounds.centerx - (rect.w // 2)
+            elif mode == "top":
+                ty = bounds.top
+            elif mode == "bottom":
+                ty = bounds.bottom - rect.h
+            elif mode == "centery":
+                ty = bounds.centery - (rect.h // 2)
+            self._set_local_position(elm, tx, ty)
+        self._sync_transform_fields()
+        self._set_message(f"Aligned {mode}")
+
+    def _selection_distribute(self, axis):
+        elements = self._selection_operation_elements(min_count=3)
+        if not elements:
+            return
+        triples = []
+        for elm in elements:
+            rect = elm.get_rect()
+            if rect is None:
+                continue
+            key = rect.centerx if axis == "x" else rect.centery
+            triples.append((key, elm, rect))
+        if len(triples) < 3:
+            self._set_message("Need at least 3 valid rects")
+            return
+        triples.sort(key=lambda t: t[0])
+        start = float(triples[0][0])
+        end = float(triples[-1][0])
+        step = (end - start) / float(len(triples) - 1)
+        for i, (_k, elm, rect) in enumerate(triples):
+            target_center = start + step * float(i)
+            if axis == "x":
+                self._set_local_position(elm, int(round(target_center - (rect.w / 2.0))), rect.y)
+            else:
+                self._set_local_position(elm, rect.x, int(round(target_center - (rect.h / 2.0))))
+        self._sync_transform_fields()
+        self._set_message(f"Distributed {axis.upper()}")
+
+    def _selection_randomize_axis(self, axis):
+        elements = self._selection_operation_elements(min_count=2)
+        if not elements:
+            return
+        rects = [elm.get_rect() for elm in elements]
+        rects = [r for r in rects if r is not None]
+        if len(rects) < 2:
+            return
+        if axis == "x":
+            lo = min(r.x for r in rects)
+            hi = max(r.x for r in rects)
+        else:
+            lo = min(r.y for r in rects)
+            hi = max(r.y for r in rects)
+        for elm in elements:
+            rect = elm.get_rect()
+            if rect is None:
+                continue
+            if axis == "x":
+                self._set_local_position(elm, random.randint(lo, hi), rect.y)
+            else:
+                self._set_local_position(elm, rect.x, random.randint(lo, hi))
+        self._sync_transform_fields()
+        self._set_message(f"Randomized {axis.upper()}")
+
+    def _color_to_rgba(self, value):
+        if isinstance(value, str):
+            parsed = self._parse_hex_color(value)
+            if parsed is not None:
+                return parsed
+        if isinstance(value, (list, tuple)) and len(value) >= 3:
+            r = max(0, min(255, int(value[0])))
+            g = max(0, min(255, int(value[1])))
+            b = max(0, min(255, int(value[2])))
+            a = max(0, min(255, int(value[3]))) if len(value) > 3 else 255
+            return (r, g, b, a)
+        return None
+
+    def _selection_open_bulk_recolor_picker(self, component_name):
+        elements = self._selection_operation_elements(min_count=1)
+        if not elements:
+            return
+        paths = []
+        first_color = None
+        for elm in elements:
+            comp = elm.getComponent(component_name)
+            if comp is None or not isinstance(comp.config, dict):
+                continue
+            if "color" not in comp.config:
+                continue
+            paths.append(elm.path)
+            if first_color is None:
+                first_color = self._color_to_rgba(comp.config.get("color"))
+        if not paths:
+            self._set_message(f"No selected elements with {component_name}.color")
+            return
+        if first_color is None:
+            first_color = (255, 255, 255, 255)
+        target_type = "bulk_fill" if component_name == "colorRect" else "bulk_outline"
+        self._open_color_picker({"type": target_type, "paths": paths}, "raw", first_color)
+
+    def _apply_bulk_component_color(self, paths, component_name, value):
+        changed = 0
+        for path in paths:
+            elm = self.manager.getElement(path)
+            if elm is None or self._is_locked_element(elm):
+                continue
+            comp = elm.getComponent(component_name)
+            if comp is None or not isinstance(comp.config, dict):
+                continue
+            if "color" not in comp.config:
+                continue
+            comp.config["color"] = value
+            if isinstance(elm.elmData, dict):
+                elm.elmData.setdefault(component_name, {})
+                if isinstance(elm.elmData.get(component_name), dict):
+                    elm.elmData[component_name]["color"] = value
+            changed += 1
+        if changed:
+            self._set_message(f"Recolored {changed} element(s)")
+
+    def _snap_target_to_sibling_alignment(self, element, target_x, target_y):
+        self.snap_guide_x = None
+        self.snap_guide_y = None
+        if element is None or (not self._alt_down()):
+            return float(target_x), float(target_y)
+        rect = element.get_rect()
+        if rect is None:
+            return float(target_x), float(target_y)
+        siblings = self._direct_sibling_rects(element)
+        if not siblings:
+            return float(target_x), float(target_y)
+
+        w = float(rect.w)
+        h = float(rect.h)
+        left = float(target_x)
+        right = left + w
+        cx = left + (w / 2.0)
+        top = float(target_y)
+        bottom = top + h
+        cy = top + (h / 2.0)
+        threshold = 5.0
+        best_dx = None
+        best_dy = None
+        best_line_x = None
+        best_line_y = None
+
+        for s in siblings:
+            sx = [float(s.left), float(s.right), float(s.centerx)]
+            sy = [float(s.top), float(s.bottom), float(s.centery)]
+            for line in sx:
+                for mine in (left, right, cx):
+                    delta = line - mine
+                    if abs(delta) <= threshold and (best_dx is None or abs(delta) < abs(best_dx)):
+                        best_dx = delta
+                        best_line_x = line
+            for line in sy:
+                for mine in (top, bottom, cy):
+                    delta = line - mine
+                    if abs(delta) <= threshold and (best_dy is None or abs(delta) < abs(best_dy)):
+                        best_dy = delta
+                        best_line_y = line
+
+        if best_dx is not None:
+            target_x = float(target_x) + float(best_dx)
+            self.snap_guide_x = best_line_x
+        if best_dy is not None:
+            target_y = float(target_y) + float(best_dy)
+            self.snap_guide_y = best_line_y
+        return float(target_x), float(target_y)
 
     def _parse_value(self, value_text):
         text = value_text.strip()
@@ -1714,7 +3002,14 @@ class UIEditor:
             return
 
         comp = selected.getComponent(self.selected_component)
-        target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+        if self.selected_component == "data":
+            target = selected.local_data
+        elif self.selected_component == "array":
+            target = selected.elmData.get("array")
+        elif self.selected_component == "copy":
+            target = {"value": selected.elmData.get("copy", "")}
+        else:
+            target = comp.config if comp is not None else None
         if not isinstance(target, dict):
             return
         if not self._component_value_set(target, self.component_numeric_drag_path, new_val):
@@ -1722,6 +3017,10 @@ class UIEditor:
 
         if self.selected_component == "data":
             selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+        elif self.selected_component == "array":
+            selected.elmData["array"] = json.loads(json.dumps(target))
+        elif self.selected_component == "copy":
+            selected.elmData["copy"] = str(target.get("value", ""))
         else:
             selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
 
@@ -1814,6 +3113,48 @@ class UIEditor:
             caret = new_caret
             sel = self._selection_range(key)
 
+        def insert_newline_auto_indent():
+            nonlocal text, caret, sel, changed
+            ensure_snapshot()
+
+            if sel is not None:
+                s, e = sel
+                text = text[:s] + text[e:]
+                caret = s
+                self._clear_selection(key, caret)
+                sel = None
+                changed = True
+
+            lines_now = self._split_lines(text)
+            line_idx, col_idx = self._index_to_line_col(text, caret)
+            line_idx = max(0, min(len(lines_now) - 1, line_idx))
+            line_text = lines_now[line_idx]
+            col_idx = max(0, min(len(line_text), col_idx))
+
+            left = line_text[:col_idx]
+            right = line_text[col_idx:]
+            leading_spaces = len(left) - len(left.lstrip(" "))
+            base_indent = " " * leading_spaces
+
+            left_trim = left.rstrip()
+            right_trim = right.lstrip()
+            opens_block = left_trim.endswith("{") or left_trim.endswith("[")
+            closes_block = bool(right_trim) and right_trim[0] in "}]"
+
+            if opens_block and closes_block:
+                insert_text = "\n" + base_indent + (" " * indent_size) + "\n" + base_indent
+                new_caret = caret + 1 + len(base_indent) + indent_size
+            else:
+                indent = base_indent + ((" " * indent_size) if opens_block else "")
+                insert_text = "\n" + indent
+                new_caret = caret + len(insert_text)
+
+            text = text[:caret] + insert_text + text[caret:]
+            caret = new_caret
+            self._clear_selection(key, caret)
+            sel = None
+            changed = True
+
         # Undo / redo
         if ctrl and not shift and self.input.get_key_down(pygame.K_z, self.passcode):
             if self._history_undo(key):
@@ -1822,6 +3163,49 @@ class UIEditor:
         if ctrl and (self.input.get_key_down(pygame.K_y, self.passcode) or (shift and self.input.get_key_down(pygame.K_z, self.passcode))):
             if self._history_redo(key):
                 self._clamp_caret(key)
+            return
+
+        # Smart JSON schema suggestions (Ctrl+Space)
+        if ctrl and self.input.get_key_down(pygame.K_SPACE, self.passcode) and self._is_json_editor_field(key):
+            if key == "component_value":
+                options = self._json_component_suggestions(text)
+                if options:
+                    ensure_snapshot()
+                    text, caret = self._insert_component_suggestion_at_caret(text, caret, options[0])
+                    self._clear_selection(key, caret)
+                    sel = None
+                    changed = True
+                    self._set_message(f"Inserted: {options[0].get('label', options[0].get('key', 'option'))}")
+                    self.fields[key] = text
+                    self.field_caret[key] = caret
+                else:
+                    self._set_message("No missing schema options to suggest")
+            return
+
+        # Clipboard
+        if ctrl and self.input.get_key_down(pygame.K_c, self.passcode):
+            if sel is not None:
+                s, e = sel
+                ok, err = self._clipboard_set_text(text[s:e])
+                self._set_message("Copied" if ok else self._clipboard_error_hint(err))
+            else:
+                self._set_message("Nothing selected")
+            return
+
+        if ctrl and self.input.get_key_down(pygame.K_v, self.passcode):
+            clip, err = self._clipboard_get_text()
+            if err:
+                self._set_message(self._clipboard_error_hint(err))
+                return
+            clip = clip.replace("\r\n", "\n").replace("\r", "\n")
+            if clip:
+                replace_selection(clip)
+                self.fields[key] = text
+                self.field_caret[key] = caret
+                if key == "element_json":
+                    self._try_instant_apply_element_json()
+            else:
+                self._set_message("Clipboard is empty")
             return
 
         # Ctrl+Shift+Up/Down duplicate current/selected line block.
@@ -1943,8 +3327,14 @@ class UIEditor:
                 changed = True
             elif caret > 0:
                 ensure_snapshot()
-                text = text[: caret - 1] + text[caret:]
-                caret -= 1
+                if ctrl:
+                    new_caret = self._prev_token_boundary(text, caret)
+                    if new_caret < caret:
+                        text = text[:new_caret] + text[caret:]
+                        caret = new_caret
+                else:
+                    text = text[: caret - 1] + text[caret:]
+                    caret -= 1
                 self._clear_selection(key, caret)
                 changed = True
         if delete_pressed:
@@ -1974,8 +3364,18 @@ class UIEditor:
                 self._clear_selection(key, caret)
                 self._apply_transform_from_fields(silent=True)
                 self.active_field = None
+                self.numeric_drag_field = None
+                self.field_mouse_select_key = None
                 return
-            replace_selection("\n")
+            if self._is_single_line_field(key):
+                self.fields[key] = text
+                self.field_caret[key] = caret
+                self._clear_selection(key, caret)
+                self.active_field = None
+                self.numeric_drag_field = None
+                self.field_mouse_select_key = None
+                return
+            insert_newline_auto_indent()
 
         if changed or self.fields.get(key, "") != text:
             self.fields[key] = text
@@ -2000,7 +3400,14 @@ class UIEditor:
                 self._set_message("Selected element is locked")
             else:
                 comp = selected.getComponent(self.selected_component)
-                target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+                if self.selected_component == "data":
+                    target = selected.local_data
+                elif self.selected_component == "array":
+                    target = selected.elmData.get("array")
+                elif self.selected_component == "copy":
+                    target = {"value": selected.elmData.get("copy", "")}
+                else:
+                    target = comp.config if comp is not None else None
                 if not isinstance(target, dict):
                     self._set_message("Missing component")
                 else:
@@ -2014,6 +3421,10 @@ class UIEditor:
                             return
                         if self.selected_component == "data":
                             selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+                        elif self.selected_component == "array":
+                            selected.elmData["array"] = json.loads(json.dumps(target))
+                        elif self.selected_component == "copy":
+                            selected.elmData["copy"] = str(target.get("value", ""))
                         else:
                             selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
                         self.fields["component_value"] = json.dumps(parsed, indent=2)
@@ -2380,6 +3791,9 @@ class UIEditor:
     def _is_json_editor_field(self, key):
         return key in {"component_value", "data_value", "element_json", "state_value", "theme_value"}
 
+    def _is_single_line_field(self, key):
+        return key not in {"component_value", "data_value", "element_json", "state_value", "theme_value"}
+
     def _json_error_line_index(self, text):
         raw = str(text)
         stripped = raw.strip()
@@ -2393,6 +3807,112 @@ class UIEditor:
             if isinstance(line, int) and line > 0:
                 return line - 1
         return None
+
+    def _json_error_info(self, text):
+        raw = str(text)
+        stripped = raw.strip()
+        if not stripped or stripped[0] not in "[{":
+            return None
+        try:
+            json.loads(raw)
+            return None
+        except Exception as ex:
+            line = int(getattr(ex, "lineno", 1) or 1)
+            col = int(getattr(ex, "colno", 1) or 1)
+            msg = str(ex)
+            pretty = msg
+            lower = msg.lower()
+            if "expecting property name enclosed in double quotes" in lower:
+                pretty = "Object keys must use double quotes"
+            elif "expecting ',' delimiter" in lower:
+                pretty = "Missing comma between items"
+            elif "unterminated string" in lower:
+                pretty = "String is missing a closing quote"
+            elif "extra data" in lower:
+                pretty = "Unexpected extra text after valid JSON"
+            elif "invalid \\escape" in lower:
+                pretty = "Invalid escape sequence in string"
+            return {
+                "line": max(1, line),
+                "col": max(1, col),
+                "message": pretty,
+            }
+
+    def _json_keyword_hints_for_field(self, key):
+        key = str(key)
+        if key == "component_value":
+            comp = str(self.selected_component or "")
+            schema = self.COMPONENT_OPTION_SCHEMAS.get(comp, [])
+            return {str(item.get("key", "")) for item in schema if str(item.get("key", "")).strip()}
+
+        if key == "element_json":
+            hints = {"data", "copy", "array"}
+            hints.update(self.COMPONENT_OPTION_SCHEMAS.keys())
+            return hints
+
+        return set()
+
+    def _json_component_suggestions(self, text):
+        comp = str(self.selected_component or "")
+        schema = self.COMPONENT_OPTION_SCHEMAS.get(comp, [])
+        if not schema:
+            return []
+
+        parsed = None
+        try:
+            parsed = json.loads(str(text))
+        except Exception:
+            parsed = None
+
+        existing = set()
+        if isinstance(parsed, dict):
+            existing = {str(k) for k in parsed.keys()}
+
+        out = []
+        for item in schema:
+            name = str(item.get("key", "")).strip()
+            if not name or name in existing:
+                continue
+            default = item.get("default", None)
+            type_info = str(item.get("type", ""))
+            out.append({
+                "key": name,
+                "default": default,
+                "type": type_info,
+                "label": f'{name}: {type_info}',
+            })
+        return out
+
+    def _insert_component_suggestion_at_caret(self, text, caret, suggestion):
+        if not suggestion:
+            return text, caret
+
+        lines = self._split_lines(text)
+        line_idx, col = self._index_to_line_col(text, caret)
+        line_idx = max(0, min(len(lines) - 1, line_idx))
+        line = lines[line_idx]
+        lead = line[:col]
+        indent = " " * (len(lead) - len(lead.lstrip(" ")))
+
+        insert_indent = indent
+        if line.lstrip().startswith("{") or line.lstrip().startswith("["):
+            insert_indent = indent + " " * self._detect_indent_size(text)
+
+        default_json = json.dumps(suggestion.get("default", None), ensure_ascii=False)
+        key_name = str(suggestion.get("key", "")).replace('"', '\\"')
+        insert_text = f'{insert_indent}"{key_name}": {default_json}'
+
+        before = text[:caret]
+        after = text[caret:]
+
+        if before and not before.endswith("\n"):
+            insert_text = "\n" + insert_text
+        if after and not after.startswith("\n"):
+            insert_text = insert_text + "\n"
+
+        new_text = before + insert_text + after
+        new_caret = len(before) + len(insert_text)
+        return new_text, new_caret
 
     def _auto_fix_json_commas(self, text):
         raw = str(text)
@@ -2803,7 +4323,8 @@ class UIEditor:
         target_line = max(0, min(len(lines) - 1, target_line))
 
         line_text = lines[target_line]
-        rel_x = max(0, mx - content.x)
+        hscroll = max(0, int(self.field_hscroll.get(key, 0)))
+        rel_x = max(0, mx - content.x + hscroll)
         col = 0
         while col < len(line_text):
             w = self.small_font.size(line_text[: col + 1])[0]
@@ -2856,10 +4377,11 @@ class UIEditor:
         caret = int(self.field_caret.get(key, 0))
         self._set_selection(key, self.field_mouse_select_anchor, caret)
 
-    def _tokenize_json_line(self, line):
+    def _tokenize_json_line(self, line, keyword_hints=None):
         tokens = []
         i = 0
         n = len(line)
+        keyword_hints = {str(k) for k in (keyword_hints or set())}
 
         def emit(text, color):
             if text:
@@ -2897,7 +4419,17 @@ class UIEditor:
                 k = j
                 while k < n and line[k].isspace():
                     k += 1
-                color = (120, 210, 255) if (k < n and line[k] == ":") else (176, 255, 176)
+                is_key = (k < n and line[k] == ":")
+                key_name = ""
+                if is_key:
+                    try:
+                        key_name = str(json.loads(token))
+                    except Exception:
+                        key_name = token.strip('"')
+                if is_key and key_name in keyword_hints:
+                    color = (255, 220, 130)
+                else:
+                    color = (120, 210, 255) if is_key else (176, 255, 176)
                 emit(token, color)
                 i = j
                 continue
@@ -2930,9 +4462,9 @@ class UIEditor:
 
         return tokens
 
-    def _draw_tokenized_line(self, surface, text, x, y, clip_rect):
+    def _draw_tokenized_line(self, surface, text, x, y, clip_rect, keyword_hints=None):
         tx = x
-        for token, color in self._tokenize_json_line(text):
+        for token, color in self._tokenize_json_line(text, keyword_hints):
             surf = self.small_font.render(token, True, color)
             if tx < clip_rect.right and tx + surf.get_width() > clip_rect.x:
                 surface.blit(surf, (tx, y))
@@ -3288,13 +4820,24 @@ class UIEditor:
             if selected is None or self._is_locked_element(selected):
                 return
             comp = selected.getComponent(self.selected_component)
-            target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+            if self.selected_component == "data":
+                target = selected.local_data
+            elif self.selected_component == "array":
+                target = selected.elmData.get("array")
+            elif self.selected_component == "copy":
+                target = {"value": selected.elmData.get("copy", "")}
+            else:
+                target = comp.config if comp is not None else None
             if not isinstance(target, dict):
                 return
             if not self._component_value_set(target, path, text_value):
                 return
             if self.selected_component == "data":
                 selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            elif self.selected_component == "array":
+                selected.elmData["array"] = json.loads(json.dumps(target))
+            elif self.selected_component == "copy":
+                selected.elmData["copy"] = str(target.get("value", ""))
             else:
                 selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
             self.fields["component_value"] = json.dumps(text_value, indent=2)
@@ -3332,6 +4875,17 @@ class UIEditor:
                 self._start_theme_inline_edit(path)
             self.theme_inline_edit_text = json.dumps(text_value) if self.color_picker_mode == "json_string" else text_value
             self.theme_inline_caret = len(self.theme_inline_edit_text)
+            return
+
+        if target_type == "bulk_fill":
+            paths = self.color_picker_target.get("paths", [])
+            self._apply_bulk_component_color(paths, "colorRect", text_value)
+            return
+
+        if target_type == "bulk_outline":
+            paths = self.color_picker_target.get("paths", [])
+            self._apply_bulk_component_color(paths, "outline", text_value)
+            return
 
     def _wheel_surface(self, radius):
         radius = int(max(8, radius))
@@ -3579,7 +5133,14 @@ class UIEditor:
             if selected is None or self._is_locked_element(selected):
                 return
             comp = selected.getComponent(self.selected_component)
-            target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+            if self.selected_component == "data":
+                target = selected.local_data
+            elif self.selected_component == "array":
+                target = selected.elmData.get("array")
+            elif self.selected_component == "copy":
+                target = {"value": selected.elmData.get("copy", "")}
+            else:
+                target = comp.config if comp is not None else None
             if not isinstance(target, dict):
                 return
 
@@ -3587,6 +5148,10 @@ class UIEditor:
                 return
             if self.selected_component == "data":
                 selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            elif self.selected_component == "array":
+                selected.elmData["array"] = json.loads(json.dumps(target))
+            elif self.selected_component == "copy":
+                selected.elmData["copy"] = str(target.get("value", ""))
             else:
                 selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
             self.fields["component_value"] = json.dumps(hex_text, indent=2)
@@ -3630,10 +5195,30 @@ class UIEditor:
                 self._start_theme_inline_edit(path)
             self.theme_inline_edit_text = json.dumps(hex_text) if self.color_picker_mode == "json_string" else hex_text
             self.theme_inline_caret = len(self.theme_inline_edit_text)
+            return
+
+        if target_type == "bulk_fill":
+            paths = self.color_picker_target.get("paths", [])
+            self._apply_bulk_component_color(paths, "colorRect", hex_text)
+            return
+
+        if target_type == "bulk_outline":
+            paths = self.color_picker_target.get("paths", [])
+            self._apply_bulk_component_color(paths, "outline", hex_text)
 
     def _close_color_picker(self, apply_changes):
+        target_type = self.color_picker_target.get("type") if isinstance(self.color_picker_target, dict) else None
         if apply_changes:
-            self._apply_color_picker_value()
+            # Bulk recolor operations are applied live while dragging/selecting.
+            # Reapplying on close can overwrite a chosen reference/value.
+            if target_type not in {"bulk_fill", "bulk_outline"}:
+                self._apply_color_picker_value()
+            if target_type == "component_inline" and self.component_inline_edit_path is not None:
+                self._stop_component_inline_edit(True)
+            elif target_type == "state_inline" and self.state_inline_edit_path is not None:
+                self._stop_state_inline_edit(True)
+            elif target_type == "theme_inline" and self.theme_inline_edit_path is not None:
+                self._stop_theme_inline_edit(True)
         self.color_picker_open = False
         self.color_picker_target = None
         self.color_picker_mode = None
@@ -3648,6 +5233,10 @@ class UIEditor:
 
         if self.input.get_key_down(pygame.K_ESCAPE, self.passcode):
             self._close_color_picker(False)
+            return True
+
+        if self.input.get_key_down(pygame.K_RETURN, self.passcode) or self.input.get_key_down(pygame.K_KP_ENTER, self.passcode):
+            self._close_color_picker(True)
             return True
 
         rect = self._color_picker_rect()
@@ -3691,7 +5280,7 @@ class UIEditor:
 
         if self.input.get_mouse_button_down(1, self.passcode):
             if self._color_cancel_rect(rect).collidepoint((mx, my)):
-                self._close_color_picker(False)
+                self._close_color_picker(True)
                 return True
 
             if self._color_existing_rect(rect).collidepoint((mx, my)):
@@ -3760,7 +5349,7 @@ class UIEditor:
                 return True
 
             if not rect.collidepoint((mx, my)):
-                self._close_color_picker(False)
+                self._close_color_picker(True)
                 return True
 
         return True
@@ -3782,7 +5371,10 @@ class UIEditor:
         visible = max(1, content.h // line_h)
         indent_size = self._detect_indent_size(text)
         json_error_line = self._json_error_line_index(text) if self._is_json_editor_field(key) else None
+        json_error_info = self._json_error_info(text) if self._is_json_editor_field(key) else None
         json_suggestions = self._json_comma_suggestions(text) if self._is_json_editor_field(key) else []
+        keyword_hints = self._json_keyword_hints_for_field(key) if self._is_json_editor_field(key) else set()
+        component_suggestions = self._json_component_suggestions(text) if key == "component_value" else []
 
         caret_idx = self._clamp_caret(key) if self.active_field == key else int(self.field_caret.get(key, len(text)))
         caret_line, caret_col = self._index_to_line_col(text, caret_idx)
@@ -3796,14 +5388,27 @@ class UIEditor:
 
         scroll = max(0, int(self.field_scroll.get(key, 0)))
         max_scroll = max(0, len(lines) - visible)
+        max_line_w = 0
+        for line in lines:
+            max_line_w = max(max_line_w, self.small_font.size(line)[0])
+        max_hscroll = max(0, max_line_w - max(1, content.w - 4))
+        hscroll = max(0, min(max_hscroll, int(self.field_hscroll.get(key, 0))))
 
         if self.active_field == key:
             if caret_line < scroll:
                 scroll = caret_line
             elif caret_line >= scroll + visible:
                 scroll = caret_line - visible + 1
+            line_text = lines[caret_line] if 0 <= caret_line < len(lines) else ""
+            caret_px = self.small_font.size(line_text[:caret_col])[0]
+            if caret_px < hscroll:
+                hscroll = caret_px
+            elif caret_px > (hscroll + content.w - 4):
+                hscroll = caret_px - (content.w - 4)
         scroll = max(0, min(max_scroll, scroll))
+        hscroll = max(0, min(max_hscroll, hscroll))
         self.field_scroll[key] = scroll
+        self.field_hscroll[key] = hscroll
 
         old_clip = surface.get_clip()
         surface.set_clip(old_clip.clip(content))
@@ -3817,7 +5422,8 @@ class UIEditor:
             elif li in suggestion_lines:
                 col = (26, 46, 88) if li == nearest_line else (14, 28, 58)
                 pygame.draw.rect(surface, col, pygame.Rect(content.x, y, content.w, line_h))
-            self._draw_indent_guides(surface, lines[li], content.x, y, line_h, indent_size, content)
+            draw_x = content.x - hscroll
+            self._draw_indent_guides(surface, lines[li], draw_x, y, line_h, indent_size, content)
             if sel is not None:
                 sel_start, sel_end = sel
                 line_start_idx = self._line_col_to_index(text, li, 0)
@@ -3827,23 +5433,41 @@ class UIEditor:
                     h_end = min(sel_end, line_end_idx)
                     c1 = max(0, h_start - line_start_idx)
                     c2 = max(0, h_end - line_start_idx)
-                    x1 = content.x + self.small_font.size(lines[li][:c1])[0]
-                    x2 = content.x + self.small_font.size(lines[li][:c2])[0]
+                    x1 = draw_x + self.small_font.size(lines[li][:c1])[0]
+                    x2 = draw_x + self.small_font.size(lines[li][:c2])[0]
                     if sel_end > line_end_idx:
                         x2 = max(x2, x1 + 6)
                     if x2 > x1:
                         pygame.draw.rect(surface, (58, 87, 130), pygame.Rect(x1, y, x2 - x1, line_h))
-            self._draw_tokenized_line(surface, lines[li], content.x, y, content)
+            self._draw_tokenized_line(surface, lines[li], draw_x, y, content, keyword_hints)
             y += line_h
 
         if self.active_field == key:
             if start <= caret_line < end:
                 line_text = lines[caret_line]
-                cx = content.x + self.small_font.size(line_text[:caret_col])[0]
+                cx = (content.x - hscroll) + self.small_font.size(line_text[:caret_col])[0]
                 cy = content.y + (caret_line - start) * line_h
                 pygame.draw.line(surface, (245, 245, 245), (cx, cy), (cx, cy + line_h - 2), 1)
 
         surface.set_clip(old_clip)
+
+        if self._is_json_editor_field(key):
+            footer = pygame.Rect(draw_rect.x + 4, draw_rect.bottom - 15, max(8, draw_rect.w - 8), 12)
+            pygame.draw.rect(surface, (20, 20, 20), footer)
+            if json_error_info is not None:
+                msg = f"JSON error L{json_error_info['line']} C{json_error_info['col']}: {json_error_info['message']}"
+                txt = self.small_font.render(msg, True, (255, 145, 145))
+                surface.blit(txt, (footer.x + 2, footer.y - 1))
+            elif key == "component_value" and component_suggestions:
+                first = component_suggestions[0]
+                extra = max(0, len(component_suggestions) - 1)
+                base = f"Suggestion: {first.get('label', first.get('key', 'option'))}"
+                msg = (base + f" (+{extra} more, Ctrl+Space)") if extra > 0 else (base + " (Ctrl+Space)")
+                txt = self.small_font.render(msg, True, (170, 220, 255))
+                surface.blit(txt, (footer.x + 2, footer.y - 1))
+            elif json_suggestions:
+                txt = self.small_font.render("Hint: Shift+Tab applies nearest comma fix", True, (160, 200, 255))
+                surface.blit(txt, (footer.x + 2, footer.y - 1))
 
         if allow_color_picker:
             info = self._hex_color_info_from_field_text(self.fields.get(key, ""))
@@ -3875,20 +5499,62 @@ class UIEditor:
         if self.context_menu_type == "element":
             return ["Remove self", "Remove subtree"]
         if self.context_menu_type == "component":
+            if isinstance(self.context_menu_target, dict) and str(self.context_menu_target.get("path", "")).strip():
+                return ["Remove value"]
             return ["Remove component"]
         if self.context_menu_type == "field_expr":
             return ["Apply"]
+        if self.context_menu_type == "selection":
+            return [
+                "Distribute X",
+                "Distribute Y",
+                "Randomize X",
+                "Randomize Y",
+                "Align Left",
+                "Align Right",
+                "Align Top",
+                "Align Bottom",
+                "Align Center X",
+                "Align Center Y",
+                "Recolor Fill",
+                "Recolor Outline",
+                "Delete Elements",
+            ]
         return []
 
     def _context_menu_rect(self):
         x, y = self.context_menu_pos
-        w = 170
+        w = 220
         rows = max(1, len(self._context_menu_items()))
         h = 6 + rows * 24
         sw, sh = self._screen_size()
         x = max(4, min(sw - w - 4, int(x)))
         y = max(4, min(sh - h - 4, int(y)))
         return pygame.Rect(x, y, w, h)
+
+    def _update_context_menu_global_input(self):
+        if not self.context_menu_open:
+            return False
+
+        left_down = self.input.get_mouse_button_down(1, self.passcode)
+        right_down = self.input.get_mouse_button_down(3, self.passcode)
+        if (not left_down) and (not right_down):
+            return False
+
+        mx, my = self.input.get_mouse_position(self.passcode)
+        rect = self._context_menu_rect()
+        if rect.collidepoint((mx, my)):
+            rel = my - (rect.y + 3)
+            idx = int(rel // 24)
+            items = self._context_menu_items()
+            if 0 <= idx < len(items):
+                self._activate_context_menu(idx)
+            else:
+                self._close_context_menu()
+            return True
+
+        self._close_context_menu()
+        return True
 
     def _open_context_menu(self, menu_type, target, pos):
         self.context_menu_open = True
@@ -3937,6 +5603,8 @@ class UIEditor:
     def _activate_context_menu(self, action_index):
         if not self.context_menu_open:
             return
+        items = self._context_menu_items()
+        chosen = items[action_index] if 0 <= int(action_index) < len(items) else ""
         menu_type = self.context_menu_type
         target = self.context_menu_target
         self._close_context_menu()
@@ -3957,23 +5625,54 @@ class UIEditor:
             selected = self._selected_element()
             if selected is None:
                 return
-            self.selected_component = str(target)
-            if self._component_is_locked(self.selected_component):
-                self._set_message("Component is locked")
-                return
-            if self._is_locked_element(selected):
-                self._set_message("Selected element is locked")
-                return
-            selected.removeComponent(self.selected_component)
-            selected.elmData.pop(self.selected_component, None)
-            self.selected_component = None
-            self.selected_component_path = ""
-            self.fields["component_value"] = ""
-            self._set_message("Component removed")
+            if isinstance(target, dict):
+                comp_name = str(target.get("component") or self.selected_component or "").strip()
+                comp_path = str(target.get("path") or "").strip()
+            else:
+                comp_name = str(target).strip()
+                comp_path = ""
+
+            if comp_name:
+                self.selected_component = comp_name
+            if comp_path:
+                self.selected_component_path = comp_path
+                value = self._component_path_value()
+                self.fields["component_value"] = json.dumps(value, indent=2)
+
+            self._remove_selected_component_or_value()
             return
 
         if menu_type == "field_expr" and target:
             self._apply_field_expression_from_context(str(target))
+            return
+
+        if menu_type == "selection":
+            if chosen == "Distribute X":
+                self._selection_distribute("x")
+            elif chosen == "Distribute Y":
+                self._selection_distribute("y")
+            elif chosen == "Randomize X":
+                self._selection_randomize_axis("x")
+            elif chosen == "Randomize Y":
+                self._selection_randomize_axis("y")
+            elif chosen == "Align Left":
+                self._selection_align("left")
+            elif chosen == "Align Right":
+                self._selection_align("right")
+            elif chosen == "Align Top":
+                self._selection_align("top")
+            elif chosen == "Align Bottom":
+                self._selection_align("bottom")
+            elif chosen == "Align Center X":
+                self._selection_align("centerx")
+            elif chosen == "Align Center Y":
+                self._selection_align("centery")
+            elif chosen == "Recolor Fill":
+                self._selection_open_bulk_recolor_picker("colorRect")
+            elif chosen == "Recolor Outline":
+                self._selection_open_bulk_recolor_picker("outline")
+            elif chosen == "Delete Elements":
+                self._delete_selected_elements()
 
     def _draw_sidebar(self, surface):
         self._color_picker_buttons = []
@@ -3989,6 +5688,20 @@ class UIEditor:
         move_btn = self._sidebar_move_button_rect()
         move_label = "<" if self.sidebar_side == "right" else ">"
         self._draw_button(surface, move_btn, move_label)
+
+        collapse_btn = self._sidebar_collapse_button_rect()
+        collapse_label = "+" if self.sidebar_collapsed else "-"
+        self._draw_button(surface, collapse_btn, collapse_label)
+
+        if self.sidebar_collapsed:
+            tab_lbl = self.small_font.render(self.tab, True, (180, 180, 180))
+            surface.blit(tab_lbl, (sb.x + 10, 38))
+            self._draw_color_picker(surface)
+            self._draw_context_menu(surface)
+            if self.message and self.message_time > 0.0:
+                msg = self.small_font.render(self.message, True, (255, 210, 120))
+                surface.blit(msg, (sb.x + 10, sb.bottom - 24))
+            return
 
         for i, tab_name in enumerate(self.tabs):
             self._draw_button(surface, self._tab_button_rect(i), tab_name, active=(self.tab == tab_name))
@@ -4014,6 +5727,37 @@ class UIEditor:
     def _sidebar_move_button_rect(self):
         sb = self._sidebar_rect()
         return pygame.Rect(sb.right - 40, 6, 30, 24)
+
+    def _sidebar_collapse_button_rect(self):
+        sb = self._sidebar_rect()
+        return pygame.Rect(sb.right - 74, 6, 30, 24)
+
+    def _stop_inline_edits(self):
+        if self.element_inline_rename_path is not None:
+            self._stop_element_inline_rename(True)
+        if self.component_inline_edit_path is not None:
+            self._stop_component_inline_edit(True)
+        if self.state_inline_edit_path is not None:
+            self._stop_state_inline_edit(True)
+        if self.state_inline_rename_path is not None:
+            self._stop_state_inline_rename(True)
+        if self.theme_inline_edit_path is not None:
+            self._stop_theme_inline_edit(True)
+        if self.theme_inline_rename_path is not None:
+            self._stop_theme_inline_rename(True)
+
+    def _toggle_sidebar_collapsed(self):
+        self._stop_inline_edits()
+        self.sidebar_collapsed = not self.sidebar_collapsed
+        self.active_field = None
+        self.numeric_drag_field = None
+        self.field_mouse_select_key = None
+        self.element_template_dropdown_open = False
+        self.component_add_dropdown_open = False
+        self.component_option_dropdown_open = False
+        self._close_context_menu()
+        if self.color_picker_open:
+            self._close_color_picker(True)
 
     def _elements_list_rect(self):
         sb = self._sidebar_rect()
@@ -4091,6 +5835,49 @@ class UIEditor:
         selected = self._selected_element()
         if selected is None or not self.selected_component:
             return []
+        if self.selected_component == "copy":
+            copy_value = selected.elmData.get("copy", "")
+            return [
+                {
+                    "path": "value",
+                    "label": "value",
+                    "depth": 0,
+                    "is_branch": False,
+                    "collapsed": False,
+                    "value": copy_value,
+                }
+            ]
+        if self.selected_component == "array":
+            arr = selected.elmData.get("array", {})
+            if not isinstance(arr, dict):
+                arr = {}
+            rows = []
+
+            def join_path(parts):
+                return ">".join([str(p) for p in parts if str(p) != ""])
+
+            def walk(node, path_parts, depth):
+                if not isinstance(node, dict):
+                    return
+                keys = sorted(node.keys())
+                for key in keys:
+                    value = node[key]
+                    current_parts = path_parts + [str(key)]
+                    current_path = join_path(current_parts)
+                    is_branch = isinstance(value, dict)
+                    rows.append({
+                        "path": current_path,
+                        "label": key,
+                        "depth": depth,
+                        "is_branch": is_branch,
+                        "collapsed": current_path in self.collapsed_component_nodes,
+                        "value": value,
+                    })
+                    if is_branch and current_path not in self.collapsed_component_nodes:
+                        walk(value, current_parts, depth + 1)
+
+            walk(arr, [], 0)
+            return rows
         if self.selected_component == "data":
             rows = []
 
@@ -4305,6 +6092,15 @@ class UIEditor:
         selected = self._selected_element()
         if selected is None or not self.selected_component_path:
             return None
+        if self.selected_component == "copy":
+            if self.selected_component_path == "value":
+                return selected.elmData.get("copy", "")
+            return None
+        if self.selected_component == "array":
+            arr = selected.elmData.get("array", {})
+            if not isinstance(arr, dict):
+                return None
+            return self._component_value_get(arr, self.selected_component_path)
         if self.selected_component == "data":
             return self._component_value_get(selected.local_data, self.selected_component_path)
         comp = selected.getComponent(self.selected_component)
@@ -4351,6 +6147,102 @@ class UIEditor:
             del node[tokens[-1]]
             return True
         return False
+
+    def _remove_selected_component_or_value(self):
+        selected = self._selected_element()
+        if selected is None:
+            self._set_message("No selected element")
+            return False
+        if self._is_locked_element(selected):
+            self._set_message("Selected element is locked")
+            return False
+        if not self.selected_component:
+            self._set_message("No selected component")
+            return False
+
+        if self.selected_component == "copy":
+            if self.selected_component_path:
+                if self.selected_component_path == "value":
+                    selected.elmData.pop("copy", None)
+                    self.selected_component_path = ""
+                    self.fields["component_value"] = ""
+                    self._set_message("Removed key value")
+                    return True
+                self._set_message("Could not remove key")
+                return False
+            selected.elmData.pop("copy", None)
+            self._set_message("Removed copy")
+            self.selected_component = None
+            self.selected_component_path = ""
+            self.fields["component_value"] = ""
+            return True
+
+        if self.selected_component == "array":
+            if self.selected_component_path:
+                arr = selected.elmData.get("array")
+                if not isinstance(arr, dict):
+                    self._set_message("Missing component")
+                    return False
+                removed_path = self.selected_component_path
+                if not self._remove_component_path(arr, removed_path):
+                    self._set_message("Could not remove key")
+                    return False
+                selected.elmData["array"] = json.loads(json.dumps(arr))
+                self.selected_component_path = ""
+                self.fields["component_value"] = ""
+                self._set_message(f"Removed key {removed_path}")
+                return True
+            selected.elmData.pop("array", None)
+            self._set_message("Removed array")
+            self.selected_component = None
+            self.selected_component_path = ""
+            self.fields["component_value"] = ""
+            return True
+
+        if self.selected_component_path:
+            comp = selected.getComponent(self.selected_component)
+            if self.selected_component == "data":
+                target = selected.local_data
+            elif self.selected_component == "array":
+                target = selected.elmData.get("array")
+            elif self.selected_component == "copy":
+                target = {"value": selected.elmData.get("copy", "")}
+            else:
+                target = comp.config if comp is not None else None
+            if not isinstance(target, dict):
+                self._set_message("Missing component")
+                return False
+            removed_path = self.selected_component_path
+            if not self._remove_component_path(target, removed_path):
+                self._set_message("Could not remove key")
+                return False
+
+            if self.selected_component == "data":
+                selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+                self.fields["data_key"] = ""
+            else:
+                selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
+
+            self.selected_component_path = ""
+            self.fields["component_value"] = ""
+            self._set_message(f"Removed key {removed_path}")
+            return True
+
+        if self._component_is_locked(self.selected_component):
+            self._set_message("Component is locked")
+            return False
+        if self.selected_component == "container" and self._is_locked_element(selected):
+            self._set_message("Screen container cannot be removed")
+            return False
+
+        removed_component = self.selected_component
+        selected.removeComponent(self.selected_component)
+        selected.elmData.pop(self.selected_component, None)
+        self._set_message(f"Removed {removed_component}")
+        self.selected_component = None
+        self.selected_component_path = ""
+        self.fields["component_value"] = ""
+        return True
 
     def _load_selected_element_json(self):
         selected = self._selected_element()
@@ -4640,9 +6532,7 @@ class UIEditor:
         pygame.draw.rect(surface, (75, 75, 75), rect, 1)
 
         selected = self._selected_element()
-        names = selected.component_order[:] if selected is not None else []
-        if selected is not None and "data" not in names:
-            names = ["data"] + names
+        names = self._component_display_names(selected)
         visible_rows = max(1, rect.h // 22)
         self.component_scroll = max(0, min(self.component_scroll, max(0, len(names) - visible_rows)))
         start = self.component_scroll
@@ -4711,8 +6601,15 @@ class UIEditor:
         opts = self._component_add_options()
         self._draw_button(surface, add_btn, "add component v", active=self.component_add_dropdown_open)
         option_btn = self._component_option_button_rect()
-        option_label = "add option v" if self.selected_component else "add option"
-        self._draw_button(surface, option_btn, option_label, active=self.component_option_dropdown_open)
+        is_data_selected = (self.selected_component == "data")
+        if is_data_selected:
+            data_key_rect = pygame.Rect(option_btn.x, option_btn.y, 118, 50)
+            data_add_btn = pygame.Rect(option_btn.x + 122, option_btn.y, 38, 30)
+            self._draw_field(surface, data_key_rect, "data_key", "data key")
+            self._draw_button(surface, data_add_btn, "+")
+        else:
+            option_label = "add option v" if self.selected_component else "add option"
+            self._draw_button(surface, option_btn, option_label, active=self.component_option_dropdown_open)
         self._draw_button(surface, pygame.Rect(sb.x + 370, 502, 90, 30), "remove")
 
         self._draw_component_tree(surface)
@@ -4743,7 +6640,7 @@ class UIEditor:
                 surface.blit(txt, (row.x + 6, row.y + 3))
                 y += row_h
 
-        if self.component_option_dropdown_open:
+        if self.component_option_dropdown_open and (not is_data_selected):
             entries = self._component_option_entries()
             rect = self._component_option_dropdown_rect()
             pygame.draw.rect(surface, (14, 14, 14), rect)
@@ -4835,7 +6732,7 @@ class UIEditor:
         self._draw_field(surface, pygame.Rect(sb.x + 358, 76, 100, 42), "size_h", "size h")
         self._draw_button(surface, pygame.Rect(sb.x + 10, 124, 130, 30), "apply transform")
 
-        self._draw_field(surface, pygame.Rect(sb.x + 10, 176, sb.w - 20, 62), "element_json", "selected element JSON")
+        self._draw_field(surface, pygame.Rect(sb.x + 10, 176, sb.w - 20, 78), "element_json", "selected element JSON")
         load_btn, apply_btn = self._metadata_element_buttons()
         self._draw_button(surface, load_btn, "load element")
         self._draw_button(surface, apply_btn, "apply element")
@@ -5026,8 +6923,19 @@ class UIEditor:
         if self.active_field is not None and wheel_y != 0:
             active_rect = self.field_rect_cache.get(self.active_field)
             if active_rect is not None and active_rect.collidepoint((mx, my)):
-                current = int(self.field_scroll.get(self.active_field, 0))
-                self.field_scroll[self.active_field] = max(0, current - int(wheel_y))
+                if self._shift_down() and self._is_json_editor_field(self.active_field):
+                    text = self.fields.get(self.active_field, "")
+                    lines = self._split_lines(text)
+                    content = self._content_rect_for_field(active_rect)
+                    max_line_w = 0
+                    for line in lines:
+                        max_line_w = max(max_line_w, self.small_font.size(line)[0])
+                    max_hscroll = max(0, max_line_w - max(1, content.w - 4))
+                    current = int(self.field_hscroll.get(self.active_field, 0))
+                    self.field_hscroll[self.active_field] = max(0, min(max_hscroll, current - int(wheel_y) * 24))
+                else:
+                    current = int(self.field_scroll.get(self.active_field, 0))
+                    self.field_scroll[self.active_field] = max(0, current - int(wheel_y))
                 return
 
         if self.tab == "elements" and self._elements_list_rect().collidepoint((mx, my)) and wheel_y != 0:
@@ -5086,6 +6994,12 @@ class UIEditor:
                         return
                 self._close_context_menu()
 
+            if not self._is_in_sidebar(mx, my):
+                selected_paths = [elm.path for elm in self._selected_elements() if elm is not None and not self._is_locked_element(elm)]
+                if selected_paths:
+                    self._open_context_menu("selection", {"paths": selected_paths}, (mx, my))
+                    return
+
             if self.tab == "metadata":
                 sb = self._sidebar_rect()
                 expr_fields = {
@@ -5119,12 +7033,26 @@ class UIEditor:
                     rel = my - (list_rect.y + 2)
                     row = rel // 22
                     idx = self.component_scroll + int(row)
-                    names = selected.component_order[:]
-                    if "data" not in names:
-                        names = ["data"] + names
+                    names = self._component_display_names(selected)
                     if 0 <= idx < len(names):
                         self._open_context_menu("component", names[idx], (mx, my))
                         return
+
+                tree_rect = self._component_tree_rect()
+                if tree_rect.collidepoint((mx, my)) and selected is not None and self.selected_component:
+                    rel = my - (tree_rect.y + 2)
+                    row = rel // 22
+                    idx = self.component_tree_scroll + int(row)
+                    rows = self._iter_component_rows()
+                    if 0 <= idx < len(rows):
+                        item = rows[idx]
+                        if not item.get("is_branch", False):
+                            self._open_context_menu(
+                                "component",
+                                {"component": self.selected_component, "path": item.get("path", "")},
+                                (mx, my),
+                            )
+                            return
 
         if not self.input.get_mouse_button_down(1, self.passcode):
             return
@@ -5164,19 +7092,9 @@ class UIEditor:
                 self.field_last_click_caret = caret
 
                 if is_double:
-                    token = self._hex_token_info_at_index(self.active_field, caret)
-                    if token is not None:
-                        self._open_color_picker(
-                            {
-                                "type": "field_token",
-                                "key": self.active_field,
-                                "start": token["start"],
-                                "end": token["end"],
-                            },
-                            token["mode"],
-                            token["color"],
-                        )
-                        return
+                    self._select_token_at_caret(self.active_field, caret)
+                    self.field_mouse_select_key = None
+                    return
 
                 if self.numeric_drag_field is None:
                     self.field_mouse_select_key = self.active_field
@@ -5187,35 +7105,20 @@ class UIEditor:
         self.resizing = False
 
         if self._sidebar_move_button_rect().collidepoint((mx, my)):
-            if self.element_inline_rename_path is not None:
-                self._stop_element_inline_rename(True)
-            if self.component_inline_edit_path is not None:
-                self._stop_component_inline_edit(True)
-            if self.state_inline_edit_path is not None:
-                self._stop_state_inline_edit(True)
-            if self.state_inline_rename_path is not None:
-                self._stop_state_inline_rename(True)
-            if self.theme_inline_edit_path is not None:
-                self._stop_theme_inline_edit(True)
-            if self.theme_inline_rename_path is not None:
-                self._stop_theme_inline_rename(True)
+            self._stop_inline_edits()
             self.sidebar_side = "left" if self.sidebar_side == "right" else "right"
+            return
+
+        if self._sidebar_collapse_button_rect().collidepoint((mx, my)):
+            self._toggle_sidebar_collapsed()
+            return
+
+        if self.sidebar_collapsed:
             return
 
         for i, tab_name in enumerate(self.tabs):
             if self._tab_button_rect(i).collidepoint((mx, my)):
-                if self.element_inline_rename_path is not None:
-                    self._stop_element_inline_rename(True)
-                if self.component_inline_edit_path is not None:
-                    self._stop_component_inline_edit(True)
-                if self.state_inline_edit_path is not None:
-                    self._stop_state_inline_edit(True)
-                if self.state_inline_rename_path is not None:
-                    self._stop_state_inline_rename(True)
-                if self.theme_inline_edit_path is not None:
-                    self._stop_theme_inline_edit(True)
-                if self.theme_inline_rename_path is not None:
-                    self._stop_theme_inline_rename(True)
+                self._stop_inline_edits()
                 self.tab = tab_name
                 self.active_field = None
                 self.numeric_drag_field = None
@@ -5415,7 +7318,25 @@ class UIEditor:
             return
 
         option_btn = self._component_option_button_rect()
-        if option_btn.collidepoint((mx, my)):
+        data_add_btn = pygame.Rect(option_btn.x + 122, option_btn.y, 38, 30)
+        if self.selected_component == "data" and data_add_btn.collidepoint((mx, my)):
+            if self._is_locked_element(selected):
+                self._set_message("Selected element is locked")
+                return
+            if not isinstance(selected.local_data, dict):
+                selected.local_data = {}
+            key_base = str(self.fields.get("data_key", "")).strip() or "newKey"
+            key = self._unique_dict_key(selected.local_data, key_base)
+            selected.local_data[key] = 0
+            selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            self.selected_component_path = key
+            self.fields["component_value"] = json.dumps(selected.local_data.get(key), indent=2)
+            self.fields["data_key"] = key
+            self.component_option_dropdown_open = False
+            self._set_message(f"Added data key {key}")
+            return
+
+        if self.selected_component != "data" and option_btn.collidepoint((mx, my)):
             if not self.selected_component:
                 self._set_message("Select a component first")
                 self.component_option_dropdown_open = False
@@ -5475,6 +7396,16 @@ class UIEditor:
                         self._set_message("Selected data")
                         return
 
+                    if base_name == "copy":
+                        if "copy" not in selected.elmData or not isinstance(selected.elmData.get("copy"), str):
+                            selected.elmData["copy"] = ""
+                        self.selected_component = "copy"
+                        self.selected_component_path = "value"
+                        self.fields["component_value"] = json.dumps(selected.elmData.get("copy", ""), indent=2)
+                        self.component_add_dropdown_open = False
+                        self._set_message("Selected copy")
+                        return
+
                     name = self._next_component_instance_name(selected, base_name)
                     if not name:
                         self._set_message("Invalid component")
@@ -5504,7 +7435,16 @@ class UIEditor:
                         return
 
                     comp = selected.getComponent(self.selected_component)
-                    if comp is None or not isinstance(comp.config, dict):
+                    if self.selected_component == "array":
+                        target_config = selected.elmData.get("array")
+                        if not isinstance(target_config, dict):
+                            target_config = {}
+                            selected.elmData["array"] = target_config
+                    elif self.selected_component == "copy":
+                        target_config = {"value": selected.elmData.get("copy", "")}
+                    else:
+                        target_config = comp.config if comp is not None else None
+                    if not isinstance(target_config, dict):
                         self._set_message("Missing component")
                         self.component_option_dropdown_open = False
                         return
@@ -5516,17 +7456,39 @@ class UIEditor:
                         self.component_option_dropdown_open = False
                         return
 
+                    base = self._component_base_name(self.selected_component)
+                    if base == "container" and key == "padding":
+                        opts_node = target_config.get("opts")
+                        if not isinstance(opts_node, dict):
+                            opts_node = {}
+                            target_config["opts"] = opts_node
+                        if "padding" in opts_node:
+                            self._set_message("opts.padding already exists")
+                            self.component_option_dropdown_open = False
+                            return
+
+                        opts_node["padding"] = json.loads(json.dumps(entry.get("default")))
+                        selected.elmData[self.selected_component] = json.loads(json.dumps(target_config))
+                        self.selected_component_path = "opts>padding"
+                        self.fields["component_value"] = json.dumps(opts_node.get("padding"), indent=2)
+                        self._set_message("Added option opts>padding")
+                        self.component_option_dropdown_open = False
+                        return
+
                     if allow_multiple:
-                        key = self._unique_dict_key(comp.config, key)
-                    elif key in comp.config:
+                        key = self._unique_dict_key(target_config, key)
+                    elif key in target_config:
                         self._set_message(f"{key} already exists")
                         self.component_option_dropdown_open = False
                         return
 
-                    comp.config[key] = json.loads(json.dumps(entry.get("default")))
-                    selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
+                    target_config[key] = json.loads(json.dumps(entry.get("default")))
+                    if self.selected_component == "copy":
+                        selected.elmData["copy"] = str(target_config.get("value", ""))
+                    else:
+                        selected.elmData[self.selected_component] = json.loads(json.dumps(target_config))
                     self.selected_component_path = key
-                    self.fields["component_value"] = json.dumps(comp.config.get(key), indent=2)
+                    self.fields["component_value"] = json.dumps(target_config.get(key), indent=2)
                     self._set_message(f"Added option {key}")
                     self.component_option_dropdown_open = False
                 return
@@ -5537,9 +7499,7 @@ class UIEditor:
             rel = my - (list_rect.y + 2)
             row = rel // 22
             idx = self.component_scroll + int(row)
-            names = selected.component_order[:]
-            if "data" not in names:
-                names = ["data"] + names
+            names = self._component_display_names(selected)
             if 0 <= idx < len(names):
                 if self.component_inline_edit_path is not None:
                     self._stop_component_inline_edit(True)
@@ -5593,6 +7553,9 @@ class UIEditor:
         field_rects = {
             "component_value": pygame.Rect(sb.x + 10, 560, sb.w - 20, 42),
         }
+        if self.selected_component == "data":
+            option_btn = self._component_option_button_rect()
+            field_rects["data_key"] = pygame.Rect(option_btn.x, option_btn.y - 4, 118, 42)
         for key, rect in field_rects.items():
             if rect.collidepoint((mx, my)):
                 if self.component_inline_edit_path is not None:
@@ -5605,24 +7568,7 @@ class UIEditor:
         remove_key_btn = pygame.Rect(sb.x + 118, 606, 120, 30)
 
         if rm_btn.collidepoint((mx, my)):
-            if self._is_locked_element(selected):
-                self._set_message("Selected element is locked")
-                return
-            if not self.selected_component:
-                self._set_message("No selected component")
-                return
-            if self._component_is_locked(self.selected_component):
-                self._set_message("Component is locked")
-                return
-            if self.selected_component == "container" and self._is_locked_element(selected):
-                self._set_message("Screen container cannot be removed")
-                return
-            selected.removeComponent(self.selected_component)
-            selected.elmData.pop(self.selected_component, None)
-            self._set_message(f"Removed {self.selected_component}")
-            self.selected_component = None
-            self.selected_component_path = ""
-            self.fields["component_value"] = ""
+            self._remove_selected_component_or_value()
             return
 
         if set_btn.collidepoint((mx, my)):
@@ -5637,7 +7583,25 @@ class UIEditor:
                 return
             parsed = self._parse_value(self.fields["component_value"])
             comp = selected.getComponent(self.selected_component)
-            target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+            if self.selected_component == "copy":
+                if self.selected_component_path != "value":
+                    self._set_message("Invalid key path")
+                    return
+                selected.elmData["copy"] = str(parsed)
+                self._set_message("Component value applied")
+                return
+            if self.selected_component == "array":
+                target = selected.elmData.get("array")
+                if not isinstance(target, dict):
+                    target = {}
+                    selected.elmData["array"] = target
+            else:
+                if self.selected_component == "data":
+                    target = selected.local_data
+                elif self.selected_component == "copy":
+                    target = {"value": selected.elmData.get("copy", "")}
+                else:
+                    target = comp.config if comp is not None else None
             if not isinstance(target, dict):
                 self._set_message("Missing component")
                 return
@@ -5646,6 +7610,10 @@ class UIEditor:
                 return
             if self.selected_component == "data":
                 selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            elif self.selected_component == "array":
+                selected.elmData["array"] = json.loads(json.dumps(target))
+            elif self.selected_component == "copy":
+                selected.elmData["copy"] = str(target.get("value", ""))
             else:
                 selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
             self._set_message("Component value applied")
@@ -5662,7 +7630,24 @@ class UIEditor:
                 self._set_message("No selected key path")
                 return
             comp = selected.getComponent(self.selected_component)
-            target = selected.local_data if self.selected_component == "data" else (comp.config if comp is not None else None)
+            if self.selected_component == "copy":
+                if self.selected_component_path != "value":
+                    self._set_message("Could not remove key")
+                    return
+                selected.elmData.pop("copy", None)
+                self.selected_component_path = ""
+                self.fields["component_value"] = ""
+                self._set_message("Component key removed")
+                return
+            if self.selected_component == "array":
+                target = selected.elmData.get("array")
+            else:
+                if self.selected_component == "data":
+                    target = selected.local_data
+                elif self.selected_component == "copy":
+                    target = {"value": selected.elmData.get("copy", "")}
+                else:
+                    target = comp.config if comp is not None else None
             if not isinstance(target, dict):
                 self._set_message("Missing component")
                 return
@@ -5671,6 +7656,10 @@ class UIEditor:
                 return
             if self.selected_component == "data":
                 selected.elmData["data"] = json.loads(json.dumps(selected.local_data))
+            elif self.selected_component == "array":
+                selected.elmData["array"] = json.loads(json.dumps(target))
+            elif self.selected_component == "copy":
+                selected.elmData["copy"] = str(target.get("value", ""))
             else:
                 selected.elmData[self.selected_component] = json.loads(json.dumps(comp.config))
             self.selected_component_path = ""
@@ -5689,7 +7678,7 @@ class UIEditor:
             "pos_y": pygame.Rect(sb.x + 126, 76, 110, 42),
             "size_w": pygame.Rect(sb.x + 242, 76, 110, 42),
             "size_h": pygame.Rect(sb.x + 358, 76, 100, 42),
-            "element_json": pygame.Rect(sb.x + 10, 176, sb.w - 20, 62),
+            "element_json": pygame.Rect(sb.x + 10, 176, sb.w - 20, 78),
         }
         for key, rect in field_rects.items():
             if rect.collidepoint((mx, my)):

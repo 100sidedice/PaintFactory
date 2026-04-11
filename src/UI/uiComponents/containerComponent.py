@@ -159,9 +159,9 @@ class ContainerComponent(UIComponent):
         ph = 0.0
         if parent_container is not None:
             try:
-                parent_content = parent_container.get_content_rect()
-                pw = float(parent_content.w)
-                ph = float(parent_content.h)
+                parent_rect = parent_container.get_rect()
+                pw = float(parent_rect.w)
+                ph = float(parent_rect.h)
             except Exception:
                 pw = 0.0
                 ph = 0.0
@@ -223,9 +223,9 @@ class ContainerComponent(UIComponent):
         ph = 0.0
         if parent_container is not None:
             try:
-                parent_content = parent_container.get_content_rect()
-                pw = float(parent_content.w)
-                ph = float(parent_content.h)
+                parent_rect = parent_container.get_rect()
+                pw = float(parent_rect.w)
+                ph = float(parent_rect.h)
             except Exception:
                 pw = 0.0
                 ph = 0.0
@@ -278,11 +278,16 @@ class ContainerComponent(UIComponent):
 
     def get_child_origin(self, child_element=None):
         content = self.get_content_rect()
+        rect = self.get_rect()
         child_container = child_element.getComponent("container") if child_element is not None else None
         child_static = bool(child_container and child_container.is_static())
 
-        ox = content.x
-        oy = content.y
+        pos_cfg = child_container.config.get("pos", [0, 0]) if child_container is not None else [0, 0]
+        x_is_anchor = isinstance(pos_cfg, (list, tuple)) and len(pos_cfg) > 0 and isinstance(pos_cfg[0], str) and str(pos_cfg[0]).startswith("__")
+        y_is_anchor = isinstance(pos_cfg, (list, tuple)) and len(pos_cfg) > 1 and isinstance(pos_cfg[1], str) and str(pos_cfg[1]).startswith("__")
+
+        ox = rect.x if x_is_anchor else content.x
+        oy = rect.y if y_is_anchor else content.y
         if self._is_scroll_enabled() and not child_static:
             sx, sy = self._scroll_axis_enabled()
             if sx:

@@ -5,6 +5,7 @@ import json
 import os
 import copy
 import pygame
+from data.settings import BASE_DIR
 
 class UIManager:
     def __init__(self, data, input, surface, GAME_STATE=None, game=None):
@@ -958,5 +959,88 @@ class UIManager:
             case _: return PathDict.get(self.data, path, default)
 
     def handleEvent(self, event, eventData, sourcePath=None, componentName=None, component=None):
-        """Handle an event from a component. Can be overridden by subclasses."""
-        pass
+        """Built-in manager events for game controls and machine operations.
+
+        Supported events:
+        - game.exit
+        - game.save
+        - game.machine.spawn
+        - game.machine.remove
+        """
+        payload = eventData if isinstance(eventData, dict) else {}
+        event_name = str(event or "").strip()
+        if not event_name:
+            return
+
+        game = getattr(self, "game", None)
+        machine_manager = getattr(game, "machine_manager", None) if game is not None else None
+
+        if event_name == "game.exit":
+            if game is not None:
+                game.running = False
+            return
+
+        if event_name == "game.save":
+            game_state = getattr(self, "GAME_STATE", None)
+            if game_state is None:
+                return
+            save_path = payload.get("path", "save.json")
+            if not isinstance(save_path, str) or not save_path.strip():
+                save_path = "save.json"
+            save_path = save_path.strip()
+            if not os.path.isabs(save_path):
+                save_path = os.path.join(BASE_DIR, save_path)
+            game_state.save(save_path)
+            return
+
+        if event_name == "game.machine.spawn":
+            if machine_manager is None:
+                return
+            machine_key = payload.get("machine")
+            if machine_key is None:
+                machine_key = payload.get("machine_key", payload.get("key"))
+            if machine_key is None:
+                return
+
+            pos = payload.get("pos")
+            if not (isinstance(pos, (list, tuple)) and len(pos) >= 2):
+                pos = [payload.get("x", 0), payload.get("y", 0)]
+            try:
+                pos = (float(pos[0]), float(pos[1]))
+            except Exception:
+                pos = (0.0, 0.0)
+
+            try:
+                rotation = int(payload.get("rotation", 0))
+            except Exception:
+                rotation = 0
+
+            machine_manager.add_machine(str(machine_key), pos=pos, rotation=rotation)
+            return
+
+        if event_name == "game.machine.remove":
+            if machine_manager is None:
+                return
+
+            machine_key = payload.get("machine")
+            if machine_key is None:
+                machine_key = payload.get("machine_key", payload.get("key"))
+
+            pos = payload.get("pos")
+            if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                pos = (pos[0], pos[1])
+            elif ("x" in payload) or ("y" in payload):
+                pos = (payload.get("x", 0), payload.get("y", 0))
+            else:
+                pos = None
+
+            rotation = payload.get("rotation", None)
+            index = payload.get("index", None)
+
+            machine_manager.remove_machine(
+                index=index,
+                machine_key=machine_key,
+                pos=pos,
+                rotation=rotation,
+            )
+            return
