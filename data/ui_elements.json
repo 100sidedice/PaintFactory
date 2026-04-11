@@ -244,9 +244,9 @@
             "dropdown.option.*":{"actions":[{"setValue":{"var":"__visible", "value":false}}]}
         }
     },
-    "screen.dropdown.options.itemTemplate":{
+    "screen.dropdown.options.item0":{
         "copy":"screen.dropdown.optionBase",
-        "array":{"x":1, "y":10, "gap":[0,32], "path":"item${index2}"},
+        "array":{"x":1, "y":10, "gap":[0,32]},
         "data":{"__label":"Option ${index2}"},
         "input":{
             "mouseup.left":{"duration":0, "emit":"dropdown.option.${index2}", "scope":["screen.dropdown.header", "screen.dropdown.options"]}

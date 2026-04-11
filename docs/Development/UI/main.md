@@ -92,6 +92,7 @@ Example:
 
 - Component reference: `docs/Development/UI/components.md`
 - Tutorials: `docs/Development/UI/tutorials.md`
+- Runtime editor guide: `docs/Development/UI/tutorials.md#runtime-ui-editor-sidebar`
 
 ### Other sections
 

@@ -2,6 +2,92 @@
 
 This page gives short practical workflows.
 
+## Runtime UI Editor (Sidebar)
+
+The project includes an in-game UI editor sidebar for authoring `ui_elements` without manual JSON editing.
+
+### Open / close and export
+
+- Toggle editor mode: `Ctrl+E`
+- Export current UI JSON: `Ctrl+P`
+- Default export target: `data/ui_elements.edited.json`
+
+### Sidebar tabs
+
+#### 1) `elements`
+
+- Select elements from a collapsible hierarchy tree (file explorer style)
+- Click the disclosure marker (`v`/`>`) to expand/collapse children
+- Double-click an element name to rename it inline (`Enter` apply, `Esc` cancel)
+- Create elements by setting `new parent path` + `new element name`
+- Reparent selected element using `reparent parent path` (+ optional new name)
+- Delete selected subtree
+
+Notes:
+- Root `screen` element is protected and cannot be moved/resized/deleted/reparented.
+- For array-driven elements, the authored base element stays editable; generated duplicates are locked.
+- Locked rows are tinted and tagged with `[locked]`.
+
+#### 2) `components`
+
+- Add component by name (`container`, `text`, `image`, `eventReader`, etc.)
+- Remove selected component
+- Inspect component config in a collapsible key tree
+- Select a config key path, then set/remove that value with the value field
+- Double-click a leaf value in the config tree to edit it inline (caret shown in-row)
+- Press `Enter` to apply inline edits, `Esc` to cancel inline edits
+- Hex color leaf values show a swatch button inline in the tree (color picker)
+
+#### 3) `metadata`
+
+- Set/remove local `data` keys by path
+- Apply `container.pos` / `container.size` values
+- Load full selected element payload JSON
+- Apply full selected element payload JSON
+- If a value field contains a hex color (`#RRGGBB`), a color swatch button appears for picker-based editing.
+
+`apply element` accepts full element payloads like:
+
+```json
+{
+  "data": {"__visible": true},
+  "container": {"pos": [10, 10], "size": [200, 60], "keywords": ["crop"], "opts": {}},
+  "text": {"bind": "__label", "editable": false},
+  "copy": "screen.someBase",
+  "array": {"x": 1, "y": 3, "gap": [0, 36]}
+}
+```
+
+This is the highest-control editing path when you want JSON-level behavior in-editor.
+
+#### 4) `state`
+
+- Browse `GAME_STATE` through a collapsible key-path tree (no manual key typing required).
+- Select a key path in the tree, then `get`/`set` using the value JSON field.
+- Double-click a leaf value in the tree to edit it inline (caret shown in-row).
+- Press `Enter` to apply inline edits, `Esc` to cancel inline edits.
+- Double-click a key name to rename it inline (`Enter` apply, `Esc` cancel).
+- Hex color leaf values show a swatch button inline in the tree (color picker).
+
+State lock rules:
+- Top-level default keys are rename-locked.
+- `settings.*` keys/values are locked from editing.
+- Locked rows are tinted and tagged with `[locked]`.
+
+### Canvas transform behavior while editor is open
+
+- Click to select elements
+- Drag to move selected element
+- `Shift + drag` to resize selected element
+- Arrow keys move selected element
+- `Ctrl + Arrow` resizes selected element
+- In Metadata tab, drag numeric transform fields (`pos_x`, `pos_y`, `size_w`, `size_h`) for micro adjustments.
+- You can also type directly into those transform fields and press `Enter` to apply.
+
+### Sidebar position toggle
+
+- Use the small top-right arrow button in the sidebar header to move the editor panel left/right.
+
 ## Tutorial 1: Create a basic toggleable button
 
 ```json
@@ -54,19 +140,23 @@ Only overridden fields need to be written.
 ## Tutorial 3: Generate repeated items with `array`
 
 ```json
-"screen.list.itemTemplate": {
+"screen.list.item0": {
   "copy": "screen.baseItem",
-  "array": {"x": 1, "y": 5, "gap": [0, 30], "path": "item${index2}"},
-  "data": {"__label": "Item ${index2}"},
+  "array": {"x": 1, "y": 5, "gap": [0, 30]},
+  "data": {"__label": "Item 0"},
   "input": {
-    "mouseup.left": {"emit": "item.pick.${index2}", "scope": ["screen.list"]}
+    "mouseup.left": {"emit": "item.pick.0", "scope": ["screen.list"]}
   }
 }
 ```
 
+`array` now duplicates from the concrete authored element path (here `item0`) instead of using a virtual template node.
+
 Template variables:
 - `${index}` (x)
 - `${index2}` (y)
+
+If you need the old virtual-template behavior, set `"mode": "template"` in the `array` object.
 
 ---
 

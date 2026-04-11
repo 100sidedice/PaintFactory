@@ -19,7 +19,7 @@ class UIelement:
 
     def _initialize_components(self):
         for component_name, component_data in self.elmData.items():
-            if component_name == "data":
+            if component_name in {"data", "copy", "array"}:
                 continue
             self.addComponent(component_name, self.data, component_data)
 
