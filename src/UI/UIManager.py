@@ -972,6 +972,15 @@ class UIManager:
         if not event_name:
             return
 
+        # Special debug event to print payloads to the console. Useful for
+        # inspecting data emitted by buttons or component rules from the UI.
+        if event_name in {"debug.print", "print"}:
+            try:
+                print("[debug.print]", repr(payload))
+            except Exception:
+                print("[debug.print] (unprintable payload)")
+            return
+
         game = getattr(self, "game", None)
         machine_manager = getattr(game, "machine_manager", None) if game is not None else None
 

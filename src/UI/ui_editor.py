@@ -1345,8 +1345,11 @@ class UIEditor:
     def _is_locked_element(self, element):
         if element is None:
             return False
-        if element.path == "screen":
-            return True
+        # An element is considered "locked" only when it is an array-derived
+        # instance that the editor should not mutate. Previously `screen` was
+        # always treated as locked — change that so `screen` can be edited via
+        # the components/sidebar while still remaining non-selectable in the
+        # viewport through container `static` semantics.
         return self.manager.is_array_locked(element.path)
 
     def _is_ancestor_path(self, ancestor_path, child_path):
@@ -6501,7 +6504,7 @@ class UIEditor:
             path = item["path"]
             row = pygame.Rect(rect.x + 2, y, rect.w - 4, 20)
             is_selected = path == self.selected_path or path in self.selected_paths
-            locked = self.manager.is_array_locked(path) or path == "screen"
+            locked = self.manager.is_array_locked(path)
             color = self._element_row_color(path, item["depth"], is_selected, locked)
             pygame.draw.rect(surface, color, row)
 

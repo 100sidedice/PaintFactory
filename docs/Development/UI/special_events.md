@@ -133,6 +133,32 @@ Example:
 
 ---
 
+### Debug print
+
+Event name:
+- `debug.print` (alias: `print`)
+
+Effect:
+- Prints the event payload to the console (stdout) so you can inspect data emitted by UI actions or rules. This is intended for quick debugging of button connections and event payloads.
+
+Example:
+
+```json
+"eventReader": {
+  "btn.debug.click": {
+    "actions": [
+      {"emitEvent": {"name": "debug.print", "eventData": {"info": "button clicked", "source": "$source"}}}
+    ]
+  }
+}
+```
+
+Notes:
+- The printed payload uses Python's `repr()` so structures will be readable in the running process logs.
+- Use this for quick inspection; remove or disable in production if console noise is a concern.
+
+---
+
 ## `eventReader` action params
 
 Supported action types:

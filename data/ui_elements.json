@@ -10,7 +10,9 @@
                 "static",
                 "globalParent"
             ],
-            "opts": {}
+            "opts": {
+                "padding": [30,30]
+            }
         }
     },
     "screen.settings-bg": {
@@ -34,12 +36,8 @@
         "colorRect": {
             "color": "#00000086"
         },
-        "outline": {
-            "width": 1,
-            "color": "#606060"
-        },
         "eventReader": {
-            "myButton.toggle": {
+            "settings-menu-toggle": {
                 "actions": [
                     {
                         "toggleValue": {
@@ -169,6 +167,41 @@
             "align": "middle",
             "verticalAlign": "middle",
             "fontSize": 34
+        }
+    },
+    "screen.settings-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [1655,0],
+            "size": [205,67],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": 10,
+            "color": "#606060FF"
+        },
+        "text": {
+            "placeholder": "Settings",
+            "align": "middle",
+            "verticalAlign": "middle",
+            "fontSize": 31
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "settings-menu-toggle",
+                "scope": [
+                    "screen.settings-bg"
+                ]
+            }
         }
     }
 }
