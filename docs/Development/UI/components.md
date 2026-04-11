@@ -57,15 +57,20 @@ Draws a rectangle in the element bounds.
 
 ```json
 "colorRect": {
-  "color": "#2A2A2A"
+  "color": "#2A2A2A",
+  "alpha": 255
 }
 ```
 
 `color` supports:
 - hex string (`#RRGGBB`)
+- hex string with alpha (`#RRGGBBAA`)
 - RGB array (`[r,g,b]`)
+- RGBA array (`[r,g,b,a]`)
 - local variable (`"__color"`)
 - theme variable (`"$theme.text.color"`)
+
+`alpha` is optional and overrides color alpha when present (`0..255`).
 
 ---
 
@@ -91,6 +96,8 @@ Renders text and supports editable mode with caret/focus.
   "placeholder": "Type...",
   "fontSize": 20,
   "padding": [8, 8],
+  "align": "left",
+  "verticalAlign": "top",
   "color": "$theme.text.color",
   "placeholderColor": "$theme.text.placeholder_color",
   "caretColor": "$theme.caret.color",
@@ -103,6 +110,10 @@ Renders text and supports editable mode with caret/focus.
 
 Binding supports external state:
 - `"__GAME_STATE.inventory.money"`
+
+Alignment options:
+- `align`: `left` | `center` | `right`
+- `verticalAlign`: `top` | `middle` | `bottom`
 
 ---
 

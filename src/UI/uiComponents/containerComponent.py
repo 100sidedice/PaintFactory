@@ -198,9 +198,51 @@ class ContainerComponent(UIComponent):
 
     def _base_size(self):
         size = self.config.get("size", [0, 0])
-        w = int(size[0]) if len(size) > 0 else 0
-        h = int(size[1]) if len(size) > 1 else 0
+        w = int(self._to_float(size[0], 0.0)) if len(size) > 0 else 0
+        h = int(self._to_float(size[1], 0.0)) if len(size) > 1 else 0
         return w, h
+
+    def _resolve_anchor_size(self, axis, value, local_pos=0.0, parent_container=None):
+        """Resolve special anchor values for `size`.
+
+        Supported:
+        - X axis: __right | __width  -> width extends to parent's right edge
+        - Y axis: __bottom | __height -> height extends to parent's bottom edge
+        """
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        if not isinstance(value, str):
+            return self._to_float(value, 0.0)
+
+        token = value.lower().strip()
+        if not token.startswith("__"):
+            return self._to_float(value, 0.0)
+
+        pw = 0.0
+        ph = 0.0
+        if parent_container is not None:
+            try:
+                parent_content = parent_container.get_content_rect()
+                pw = float(parent_content.w)
+                ph = float(parent_content.h)
+            except Exception:
+                pw = 0.0
+                ph = 0.0
+
+        if axis == "x":
+            if token in {"__right", "__width"}:
+                return max(0.0, pw - float(local_pos))
+            if token in {"__left", "__top"}:
+                return 0.0
+
+        if axis == "y":
+            if token in {"__bottom", "__height"}:
+                return max(0.0, ph - float(local_pos))
+            if token in {"__left", "__top"}:
+                return 0.0
+
+        return self._to_float(value, 0.0)
 
     def clear_layout(self):
         self._layout_offset = None
@@ -254,6 +296,9 @@ class ContainerComponent(UIComponent):
         raw_pos = self.config.get("pos", [0, 0])
         raw_x = raw_pos[0] if len(raw_pos) > 0 else 0.0
         raw_y = raw_pos[1] if len(raw_pos) > 1 else 0.0
+        raw_size = self.config.get("size", [0, 0])
+        raw_w = raw_size[0] if len(raw_size) > 0 else 0
+        raw_h = raw_size[1] if len(raw_size) > 1 else 0
 
         w, h = self._local_size()
 
@@ -273,6 +318,9 @@ class ContainerComponent(UIComponent):
                     if self._layout_offset is None or self.is_static():
                         x = self._resolve_anchor_pos("x", raw_x, parent_container, own_size=w)
                         y = self._resolve_anchor_pos("y", raw_y, parent_container, own_size=h)
+                    if self._layout_size is None or self.is_static():
+                        w = self._resolve_anchor_size("x", raw_w, local_pos=x, parent_container=parent_container)
+                        h = self._resolve_anchor_size("y", raw_h, local_pos=y, parent_container=parent_container)
                     px, py = parent_container.get_child_origin(self.element)
                     x += px
                     y += py

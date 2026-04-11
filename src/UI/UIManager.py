@@ -18,6 +18,8 @@ class UIManager:
         self._raw_ui_data = {}
         self._editor_array_meta = {}
         self._editor_array_sources = {}
+        self._element_order = {}
+        self._next_element_order = 0
 
     def loadUIElements(self):
         """Load UI elements from data and create UIelement instances."""
@@ -25,10 +27,28 @@ class UIManager:
         self._raw_ui_data = copy.deepcopy(raw_ui_data)
         self._editor_array_meta = {}
         self._editor_array_sources = {}
+        self._element_order = {}
+        self._next_element_order = 0
         ui_data = self._preprocess_ui_data(raw_ui_data)
-        for path in sorted(ui_data.keys(), key=lambda p: (p.count("."), p)):
+        index_map = {path: i for i, path in enumerate(ui_data.keys())}
+        for path in sorted(ui_data.keys(), key=lambda p: (p.count("."), index_map.get(p, 0))):
             element_data = ui_data[path]
             self.addElement(path, element_data)
+
+    def _ensure_order_key(self, path):
+        if path not in self._element_order:
+            self._element_order[path] = int(self._next_element_order)
+            self._next_element_order += 1
+        return self._element_order[path]
+
+    def _sibling_paths(self, path):
+        parent = self._nearest_existing_parent_path(path)
+        out = []
+        for key in self.ui_elements.keys():
+            if self._nearest_existing_parent_path(key) == parent:
+                out.append(key)
+        out.sort(key=lambda p: (self._ensure_order_key(p), p))
+        return out
 
     def _deep_merge_missing(self, base, override):
         """Merge where `override` only replaces fields it explicitly defines.
@@ -258,29 +278,38 @@ class UIManager:
         return final
             
     def flattenElements(self):
-        """Return UI elements ordered by depth and subtree depth.
+        """Return UI elements parent-first, sibling-ordered by insertion/move order."""
+        if not self.ui_elements:
+            return []
 
-        Primary key: element path depth (parent -> child).
-        Secondary key: max descendant depth under that element.
-        This lets update traversal prefer branches with deeper interactive children.
-        """
-        elements = [elm for elm in self.ui_elements.values() if elm is not None]
+        children = {}
+        roots = []
+        for path in self.ui_elements.keys():
+            self._ensure_order_key(path)
+            parent = self._nearest_existing_parent_path(path)
+            if parent is None:
+                roots.append(path)
+            else:
+                children.setdefault(parent, []).append(path)
 
-        max_depth_cache = {}
+        roots.sort(key=lambda p: (self._ensure_order_key(p), p))
+        for parent in children.keys():
+            children[parent].sort(key=lambda p: (self._ensure_order_key(p), p))
 
-        def subtree_max_depth(path):
-            if path in max_depth_cache:
-                return max_depth_cache[path]
-            base = path.count(".")
-            prefix = f"{path}."
-            best = base
-            for other_path in self.ui_elements.keys():
-                if other_path == path or other_path.startswith(prefix):
-                    best = max(best, other_path.count("."))
-            max_depth_cache[path] = best
-            return best
+        ordered = []
 
-        return sorted(elements, key=lambda elm: (elm.path.count("."), subtree_max_depth(elm.path), elm.path))
+        def walk(path):
+            elm = self.ui_elements.get(path)
+            if elm is None:
+                return
+            ordered.append(elm)
+            for child in children.get(path, []):
+                walk(child)
+
+        for root in roots:
+            walk(root)
+
+        return ordered
     
     def update(self, delta):
         editor_passcode = self.editor.passcode if self.editor.enabled else None
@@ -329,6 +358,36 @@ class UIManager:
             serialized[element.path] = payload
         return serialized
 
+    def serialize_ui_elements_editor_snapshot(self):
+        """Serialize editor-stable UI JSON for undo/redo history.
+
+        Uses source `elmData["data"]` instead of runtime `local_data` to avoid
+        frame-by-frame churn from transient runtime state.
+        """
+        serialized = {}
+        for element in self.flattenElements():
+            payload = {}
+
+            for key, value in element.elmData.items():
+                if key in {"data"}:
+                    continue
+                if key in element.components:
+                    continue
+                payload[key] = copy.deepcopy(value)
+
+            static_data = element.elmData.get("data", None)
+            if isinstance(static_data, dict) and static_data:
+                payload["data"] = copy.deepcopy(static_data)
+
+            for component_name in element.component_order:
+                component = element.components.get(component_name)
+                if component is None:
+                    continue
+                payload[component_name] = copy.deepcopy(component.config)
+
+            serialized[element.path] = payload
+        return serialized
+
     def available_component_names(self):
         components = self.data.get("uiComponents", {})
         names = []
@@ -365,6 +424,7 @@ class UIManager:
 
     def _replace_element_instance(self, path, element_data):
         self.ui_elements[path] = UIelement(path, element_data, self.data, self, self.input)
+        self._ensure_order_key(path)
 
     def regenerate_array_source(self, source_path, source_payload):
         if not source_path:
@@ -404,14 +464,142 @@ class UIManager:
         os.makedirs(os.path.dirname(target), exist_ok=True)
 
         payload = self.serialize_ui_elements()
+        formatted = self._format_export_json(payload)
         with open(target, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=4)
+            f.write(formatted)
+            f.write("\n")
         return target
+
+    def export_theme_defaults_json(self, filepath):
+        target = filepath
+        if not os.path.isabs(target):
+            target = os.path.join(os.getcwd(), target)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+
+        payload = self.data.get("themeDefaults", {}) if isinstance(self.data, dict) else {}
+        formatted = self._format_export_json(payload)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(formatted)
+            f.write("\n")
+        return target
+
+    def _is_simple_numeric_array(self, value):
+        if not isinstance(value, list) or not value:
+            return False
+        for item in value:
+            if isinstance(item, bool) or not isinstance(item, (int, float)):
+                return False
+        return True
+
+    def _format_export_json(self, value, indent=4, level=0):
+        pad = " " * (indent * level)
+        child_pad = " " * (indent * (level + 1))
+
+        if isinstance(value, dict):
+            if not value:
+                return "{}"
+            parts = []
+            for key, item in value.items():
+                key_text = json.dumps(str(key), ensure_ascii=False)
+                item_text = self._format_export_json(item, indent=indent, level=level + 1)
+                parts.append(f"{child_pad}{key_text}: {item_text}")
+            return "{\n" + ",\n".join(parts) + f"\n{pad}" + "}"
+
+        if isinstance(value, list):
+            if not value:
+                return "[]"
+            if self._is_simple_numeric_array(value):
+                compact = ",".join(json.dumps(item, ensure_ascii=False) for item in value)
+                return f"[{compact}]"
+            parts = [f"{child_pad}{self._format_export_json(item, indent=indent, level=level + 1)}" for item in value]
+            return "[\n" + ",\n".join(parts) + f"\n{pad}]"
+
+        return json.dumps(value, ensure_ascii=False)
+
+    def capture_editor_state(self):
+        """Capture full editable UI state for undo/redo."""
+        game_state_payload = None
+        if getattr(self, "GAME_STATE", None) is not None and hasattr(self.GAME_STATE, "state"):
+            game_state_payload = copy.deepcopy(self.GAME_STATE.state)
+        return {
+            "ui": copy.deepcopy(self.serialize_ui_elements()),
+            "array_meta": copy.deepcopy(self._editor_array_meta),
+            "array_sources": copy.deepcopy(self._editor_array_sources),
+            "element_order": copy.deepcopy(self._element_order),
+            "next_element_order": int(self._next_element_order),
+            "game_state": game_state_payload,
+        }
+
+    def restore_editor_state(self, state):
+        """Restore full editable UI state from undo/redo snapshot."""
+        if not isinstance(state, dict):
+            return False, "Invalid state"
+
+        ui = state.get("ui")
+        if not isinstance(ui, dict):
+            return False, "Invalid UI payload"
+
+        self.ui_elements = {}
+        self._editor_array_meta = copy.deepcopy(state.get("array_meta", {}))
+        self._editor_array_sources = copy.deepcopy(state.get("array_sources", {}))
+        self._element_order = copy.deepcopy(state.get("element_order", {}))
+        self._next_element_order = int(state.get("next_element_order", 0) or 0)
+        self._raw_ui_data = copy.deepcopy(ui)
+        # Keep canonical data source in sync with restored editor JSON.
+        if isinstance(getattr(self, "data", None), dict):
+            self.data["uiElements"] = copy.deepcopy(ui)
+
+        # Parent-first rebuild while preserving insertion order from snapshot payload.
+        index_map = {path: i for i, path in enumerate(ui.keys())}
+        ordered_paths = sorted(ui.keys(), key=lambda p: (p.count("."), index_map.get(p, 0)))
+        for path in ordered_paths:
+            self.addElement(path, copy.deepcopy(ui[path]))
+            if path in self._element_order:
+                # Keep explicit stored order for stable sibling ordering.
+                self._element_order[path] = int(self._element_order[path])
+
+        if self._next_element_order <= 0:
+            if self._element_order:
+                self._next_element_order = max(self._element_order.values()) + 1
+            else:
+                self._next_element_order = len(self.ui_elements)
+
+        game_state_payload = state.get("game_state", None)
+        if game_state_payload is not None and getattr(self, "GAME_STATE", None) is not None and hasattr(self.GAME_STATE, "state"):
+            self.GAME_STATE.state = copy.deepcopy(game_state_payload)
+
+        return True, "Restored"
+
+    def restore_from_json_snapshot(self, ui_payload, game_state_payload=None):
+        """Restore editor/runtime UI strictly from canonical JSON payload."""
+        if not isinstance(ui_payload, dict):
+            return False, "Invalid UI payload"
+
+        self.ui_elements = {}
+        self._editor_array_meta = {}
+        self._editor_array_sources = {}
+        self._element_order = {}
+        self._next_element_order = 0
+
+        self._raw_ui_data = copy.deepcopy(ui_payload)
+        if isinstance(getattr(self, "data", None), dict):
+            self.data["uiElements"] = copy.deepcopy(ui_payload)
+
+        index_map = {path: i for i, path in enumerate(ui_payload.keys())}
+        ordered_paths = sorted(ui_payload.keys(), key=lambda p: (p.count("."), index_map.get(p, 0)))
+        for path in ordered_paths:
+            self.addElement(path, copy.deepcopy(ui_payload[path]))
+
+        if game_state_payload is not None and getattr(self, "GAME_STATE", None) is not None and hasattr(self.GAME_STATE, "state"):
+            self.GAME_STATE.state = copy.deepcopy(game_state_payload)
+
+        return True, "Restored"
 
     def addElement(self, path, data):
         """Add a UI element at the specified path."""
         element = UIelement(path, data, self.data, self, self.input)
         self.ui_elements[path] = element
+        self._ensure_order_key(path)
 
     def create_element(self, path, element_data=None):
         if not path or path in self.ui_elements:
@@ -431,7 +619,57 @@ class UIManager:
         targets = [key for key in self.ui_elements.keys() if key == path or key.startswith(f"{path}.")]
         for key in targets:
             self.ui_elements.pop(key, None)
+            self._element_order.pop(key, None)
         return len(targets)
+
+    def remove_element_keep_children(self, path):
+        """Remove one element and reparent its direct/indirect children to its parent.
+
+        Example:
+        - remove `a.b`
+        - `a.b.c` becomes `a.c`
+        - `a.b.c.d` becomes `a.c.d`
+        """
+        if not path or path not in self.ui_elements:
+            return False, "Source element does not exist", []
+        if "." not in path:
+            return False, "Root element cannot be removed this way", []
+
+        parent = path.rsplit(".", 1)[0]
+        moved = []
+
+        subtree = [k for k in self.ui_elements.keys() if k.startswith(f"{path}.")]
+        subtree.sort(key=lambda p: p.count("."))
+
+        remap = []
+        occupied = set(self.ui_elements.keys())
+        occupied.discard(path)
+        for old in subtree:
+            suffix = old[len(path) + 1 :]
+            target = f"{parent}.{suffix}" if suffix else parent
+            if target in occupied:
+                return False, f"Target path already exists: {target}", []
+            remap.append((old, target))
+            occupied.add(target)
+
+        for old, new in remap:
+            elm = self.ui_elements.pop(old)
+            elm.path = new
+            elm.name = new
+            moved.append((new, elm))
+            if old in self._element_order:
+                self._element_order[new] = self._element_order.pop(old)
+
+        self.ui_elements.pop(path, None)
+        self._element_order.pop(path, None)
+
+        for new, elm in moved:
+            self.ui_elements[new] = elm
+
+        for old, new in remap:
+            self._remap_element_path_references(old, new)
+
+        return True, "Removed element and kept children", [p for p, _ in moved]
 
     def rename_element_path(self, old_path, new_path):
         if not old_path or not new_path:
@@ -459,6 +697,8 @@ class UIManager:
             elm.path = dst
             elm.name = dst
             moved.append((dst, elm))
+            if src in self._element_order:
+                self._element_order[dst] = self._element_order.pop(src)
 
         for dst, elm in moved:
             self.ui_elements[dst] = elm
@@ -481,7 +721,94 @@ class UIManager:
             return False, "Name cannot be empty", None
         target = f"{new_parent_path}.{name}"
         ok, msg = self.rename_element_path(path, target)
+        if ok:
+            siblings = self._sibling_paths(target)
+            max_order = max((self._ensure_order_key(p) for p in siblings), default=-1)
+            self._element_order[target] = max_order + 1
         return ok, msg, target if ok else None
+
+    def move_element_sibling_order(self, path, direction):
+        if path not in self.ui_elements:
+            return False, "Source element does not exist"
+        step = int(direction)
+        if step == 0:
+            return True, "No change"
+
+        siblings = self._sibling_paths(path)
+        if path not in siblings:
+            return False, "Invalid sibling order"
+        idx = siblings.index(path)
+        target_idx = idx + (-1 if step < 0 else 1)
+        if target_idx < 0 or target_idx >= len(siblings):
+            return False, "Already at edge"
+
+        a = siblings[idx]
+        b = siblings[target_idx]
+        oa = self._ensure_order_key(a)
+        ob = self._ensure_order_key(b)
+        self._element_order[a] = ob
+        self._element_order[b] = oa
+        return True, "Reordered"
+
+    def _element_payload_from_instance(self, element):
+        payload = {}
+        if element.local_data:
+            payload["data"] = copy.deepcopy(element.local_data)
+
+        for key, value in element.elmData.items():
+            if key in {"data"}:
+                continue
+            if key in element.components:
+                continue
+            payload[key] = copy.deepcopy(value)
+
+        for name in element.component_order:
+            comp = element.components.get(name)
+            if comp is None:
+                continue
+            payload[name] = copy.deepcopy(comp.config)
+        return payload
+
+    def duplicate_element_tree(self, source_path, new_name=None):
+        if not source_path or source_path not in self.ui_elements:
+            return False, "Source element does not exist", None, 0
+
+        parent = source_path.rsplit(".", 1)[0] if "." in source_path else ""
+        leaf = source_path.rsplit(".", 1)[-1]
+        base_leaf = (new_name or f"{leaf}_copy").strip()
+        if not base_leaf:
+            return False, "Invalid duplicate name", None, 0
+
+        new_leaf = base_leaf
+        i = 1
+        while True:
+            root_candidate = f"{parent}.{new_leaf}" if parent else new_leaf
+            if root_candidate not in self.ui_elements:
+                break
+            new_leaf = f"{base_leaf}{i}"
+            i += 1
+
+        new_root = f"{parent}.{new_leaf}" if parent else new_leaf
+
+        subtree = [p for p in self.ui_elements.keys() if p == source_path or p.startswith(f"{source_path}.")]
+        subtree.sort(key=lambda p: p.count("."))
+
+        created = 0
+        for old in subtree:
+            suffix = old[len(source_path):]
+            dst = f"{new_root}{suffix}"
+            src_element = self.ui_elements.get(old)
+            if src_element is None:
+                continue
+            payload = self._element_payload_from_instance(src_element)
+            self.addElement(dst, payload)
+            created += 1
+
+        siblings = self._sibling_paths(new_root)
+        max_order = max((self._ensure_order_key(p) for p in siblings), default=-1)
+        self._element_order[new_root] = max_order + 1
+
+        return True, "Duplicated", new_root, created
 
     def _map_obj(self, obj, mapper):
         if isinstance(obj, dict):
@@ -567,6 +894,7 @@ class UIManager:
 
     def removeElement(self, path):
         self.ui_elements.pop(path, None)
+        self._element_order.pop(path, None)
 
     def getElement(self, path, default=None):
         return self.ui_elements.get(path, default)

@@ -44,4 +44,11 @@ class OutlineComponent(UIComponent):
 
         width = int(self.config.get("width", 1))
         color = self._parse_color(self.config.get("color", "#FFFFFF"))
+
+        if width < 0:
+            stroke = abs(width)
+            draw_rect = pygame.Rect(rect.x - stroke, rect.y - stroke, rect.w + (stroke * 2), rect.h + (stroke * 2))
+            pygame.draw.rect(surface, color, draw_rect, stroke)
+            return
+
         pygame.draw.rect(surface, color, rect, width)

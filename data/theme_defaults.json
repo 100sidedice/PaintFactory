@@ -9,5 +9,10 @@
     },
     "focus": {
         "outline_color": "#4DA3FF"
+    },
+    "pallet": {
+        "gray1": 0,
+        "gray2": 0,
+        "gray3": 0
     }
 }

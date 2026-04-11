@@ -145,16 +145,36 @@ class TextComponent(UIComponent):
         padding = self.config.get("padding", [6, 4])
         px = int(padding[0]) if len(padding) > 0 else 6
         py = int(padding[1]) if len(padding) > 1 else 4
+        content_x = rect.x + px
+        content_y = rect.y + py
+        content_w = max(0, rect.w - (px * 2))
+        content_h = max(0, rect.h - (py * 2))
 
         draw_text = value if value else placeholder
         color = text_color if value else placeholder_color
         text_surf = font.render(draw_text, True, color)
+        text_w = text_surf.get_width()
+        text_h = text_surf.get_height()
+
+        align = str(self.config.get("align", "left") or "left").strip().lower()
+        if align in {"center", "middle"}:
+            text_x = content_x + (content_w - text_w) // 2
+        elif align in {"right", "end"}:
+            text_x = content_x + content_w - text_w
+        else:
+            text_x = content_x
+
+        vertical_align = self.config.get("verticalAlign", self.config.get("valign", "top"))
+        vertical_align = str(vertical_align or "top").strip().lower()
+        if vertical_align in {"center", "middle"}:
+            text_y = content_y + (content_h - text_h) // 2
+        elif vertical_align in {"bottom", "end"}:
+            text_y = content_y + content_h - text_h
+        else:
+            text_y = content_y
 
         old_clip = surface.get_clip()
         surface.set_clip(old_clip.clip(rect))
-
-        text_x = rect.x + px
-        text_y = rect.y + py
         surface.blit(text_surf, (text_x, text_y))
 
         if self.focused and self._is_editable():
