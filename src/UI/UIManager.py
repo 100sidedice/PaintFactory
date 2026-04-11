@@ -943,7 +943,28 @@ class UIManager:
 
     def emit_event(self, event, eventData=None, scope=None, source_element=None, componentName=None, component=None):
         payload = eventData or {}
-        targets = [elm for elm in self.flattenElements() if self._in_scope(elm.path, scope)]
+        # Resolve special scope token '__self' to the provided source element path.
+        resolved_scope = None
+        if scope:
+            scopes = [scope] if isinstance(scope, str) else list(scope)
+            resolved = []
+            for s in scopes:
+                try:
+                    if not isinstance(s, str):
+                        continue
+                    if s == "__self":
+                        if source_element:
+                            resolved.append(source_element)
+                        continue
+                    if s.startswith("__self."):
+                        if source_element:
+                            resolved.append(f"{source_element}{s[6:]}")
+                        continue
+                    resolved.append(s)
+                except Exception:
+                    continue
+            resolved_scope = resolved
+        targets = [elm for elm in self.flattenElements() if self._in_scope(elm.path, resolved_scope)]
         for element in targets:
             element.handleEvent(event, payload, sourcePath=source_element, componentName=componentName, component=component)
 

@@ -186,6 +186,35 @@ Object form:
 }
 ```
 
+Scope notes:
+- The optional `scope` parameter controls which UI elements receive the emitted event. It accepts element paths or arrays of paths.
+- You can use the special token `__self` inside `scope` to mean the emitting element itself. This is useful when an action should target only the element that triggered it.
+- You may also use `__self.<suffix>` to target a descendant path relative to the emitter (for example `__self.settings` resolves to `<emitter_path>.settings`).
+
+Example — emit to the emitter only:
+
+```json
+{
+  "emitEvent": {
+    "name": "some.event",
+    "eventData": {"foo": "bar"},
+    "scope": "__self"
+  }
+}
+```
+
+Example — emit to a child path under the emitter:
+
+```json
+{
+  "emitEvent": {
+    "name": "some.event",
+    "eventData": {"foo": "bar"},
+    "scope": ["__self.childGroup", "screen.hud"]
+  }
+}
+```
+
 `scope` is optional and applies to the emitted UI event broadcast.
 
 ---

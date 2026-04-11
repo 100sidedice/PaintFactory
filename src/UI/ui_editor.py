@@ -107,6 +107,24 @@ class UIEditor:
             {"key": "on_hover_start", "type": "String[event]", "default": ""},
             {"key": "on_hover_end", "type": "String[event]", "default": ""},
         ],
+        "particle": [
+            {"key": "size_min", "type": "float", "default": 2},
+            {"key": "size_max", "type": "float", "default": 6},
+            {"key": "spawn_pos", "type": "Array[String|float]", "default": ["__middle", "__middle"]},
+            {"key": "colors", "type": "Array[String[Hex]|Array[int,int,int]|String[var]]", "default": ["#FFFFFF"]},
+            {"key": "blend", "type": "int", "default": 0},
+            {"key": "speed_min", "type": "float", "default": 10},
+            {"key": "speed_max", "type": "float", "default": 60},
+            {"key": "gravity_type", "type": "String[none|direction|spiral]", "default": "none"},
+            {"key": "gravity_strength", "type": "float", "default": 0.0},
+            {"key": "gravity_direction", "type": "float", "default": 90.0},
+            {"key": "num_max", "type": "int", "default": 200},
+            {"key": "spawn_rate_min", "type": "float", "default": 5.0},
+            {"key": "spawn_rate_max", "type": "float", "default": 10.0},
+            {"key": "rot_min", "type": "float", "default": 0.0},
+            {"key": "rot_max", "type": "float", "default": 360.0},
+            {"key": "particle_shapes", "type": "Array[String[circle|square|star]]", "default": ["circle"]},
+        ],
     }
 
     def __init__(self, manager, input_api):
@@ -566,6 +584,8 @@ class UIEditor:
             names.append("data")
         if "hover" not in names:
             names.append("hover")
+        if "particle" not in names:
+            names.append("particle")
         return sorted(set(names))
 
     def _component_display_names(self, selected):

@@ -251,3 +251,43 @@ Types:
 - `sine`
 
 Use animated variables anywhere a component supports variable bindings.
+
+---
+
+## 11) `hover`
+Fires events when the pointer enters or leaves the element's rect. Useful for hover-driven menus, tooltips, and state toggles.
+
+Configuration:
+
+```json
+"hover": {
+  "on_hover_start": "event.name"  // or an object (see below)
+  "on_hover_end": "event.name"
+}
+```
+
+Fields:
+- `on_hover_start`: String or Object — event to emit when pointer enters.
+- `on_hover_end`: String or Object — event to emit when pointer leaves.
+
+String form:
+- Provide an event name string to emit a simple event.
+
+Object form:
+- Use an object to supply `name` (or `emit`), optional `eventData` (object), and optional `scope` (string or array). Example:
+
+```json
+"hover": {
+  "on_hover_start": {
+    "name": "menu.open",
+    "scope": "__self",
+    "eventData": { "from": "hover" }
+  }
+}
+```
+
+Notes:
+- The component computes hover using the element's `container` rect — ensure the element has a `container` component so it has bounds.
+- Emitted payloads automatically include `source` (the emitting element path) and `trigger` (e.g., `hover.start` / `hover.end`). If you provide `eventData`, its keys are merged into the payload.
+- `scope` supports the usual values including the special token `__self` (see `docs/Development/UI/special_events.md`) to target the emitter itself or `__self.<subpath>` to target a child path of the emitter.
+
