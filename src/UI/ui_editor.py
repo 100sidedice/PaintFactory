@@ -198,6 +198,7 @@ class UIEditor:
         self.color_picker_existing_open = False
         self.color_picker_existing_region = "theme"
         self.color_picker_existing_scroll = 0
+        self.color_picker_applied_direct = False
         self.color_picker_existing_hscroll = 0
         self._color_wheel_cache = {}
 
@@ -5067,6 +5068,7 @@ class UIEditor:
         self.color_picker_existing_open = False
         self.color_picker_existing_region = "theme"
         self.color_picker_existing_scroll = 0
+        self.color_picker_applied_direct = False
 
     def _sample_picker_color_at_screen(self, mx, my):
         try:
@@ -5090,6 +5092,10 @@ class UIEditor:
             return False
 
     def _apply_color_picker_value(self):
+        # When applying live from the picker UI, clear any "directly applied"
+        # reference flag so that closing the picker does not overwrite a user
+        # chosen reference value.
+        self.color_picker_applied_direct = False
         if not self.color_picker_target:
             return
         hex_text = self._format_hex(self._current_picker_rgba())
@@ -5215,7 +5221,14 @@ class UIEditor:
             # Bulk recolor operations are applied live while dragging/selecting.
             # Reapplying on close can overwrite a chosen reference/value.
             if target_type not in {"bulk_fill", "bulk_outline"}:
-                self._apply_color_picker_value()
+                # If we previously applied a reference/text value directly
+                # from the existing color list, avoid re-applying the
+                # current wheel color which would overwrite that choice.
+                if not getattr(self, "color_picker_applied_direct", False):
+                    self._apply_color_picker_value()
+                else:
+                    # Clear the flag after honoring the direct application.
+                    self.color_picker_applied_direct = False
             if target_type == "component_inline" and self.component_inline_edit_path is not None:
                 self._stop_component_inline_edit(True)
             elif target_type == "state_inline" and self.state_inline_edit_path is not None:
@@ -5309,6 +5322,10 @@ class UIEditor:
                         entry = entries[idx]
                         if entry.get("is_reference", False):
                             self._apply_color_picker_text_value(entry.get("value", ""))
+                            # Mark that we applied a reference/text directly so
+                            # the subsequent close action does not reapply the
+                            # current wheel color and overwrite this selection.
+                            self.color_picker_applied_direct = True
                         else:
                             rgba = entry.get("color")
                             if isinstance(rgba, (list, tuple)) and len(rgba) >= 3:
@@ -5318,6 +5335,10 @@ class UIEditor:
                                 self.color_picker_v = v
                                 if len(rgba) > 3:
                                     self.color_picker_a = max(0.0, min(1.0, float(int(rgba[3])) / 255.0))
+                            # Normal color entries are applied live; clear any
+                            # direct-apply flag to allow close to reapply if
+                            # needed.
+                            self.color_picker_applied_direct = False
                             self._apply_color_picker_value()
                         return True
                 return True

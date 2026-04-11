@@ -109,8 +109,8 @@
             "__editingText": false
         },
         "container": {
-            "pos": [698,497],
-            "size": [446,171],
+            "pos": [805,543],
+            "size": [339,125],
             "keywords": [
                 "crop",
                 "input"
@@ -133,7 +133,7 @@
             "placeholder": "Exit game",
             "align": "middle",
             "verticalAlign": "middle",
-            "fontSize": 78
+            "fontSize": 67
         }
     },
     "screen.settings-bg.settings-menu.quit_copy": {
