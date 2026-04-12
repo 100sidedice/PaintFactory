@@ -19,20 +19,24 @@ class UIEditor:
             {"key": "keywords", "type": "Array[String]", "default": []},
             {"key": "opts", "type": "Object", "default": {}},
             {"key": "padding", "type": "Array[int,int] (opts)", "default": [0, 0]},
+            {"key": "priority", "type": "int", "default": 70},
         ],
         "colorRect": [
             {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
             {"key": "alpha", "type": "int[0..255]", "default": 255},
+            {"key": "priority", "type": "int", "default": 10},
         ],
         "polygon": [
             {"key": "vertices", "type": "Array[Array[number,number]]", "default": [[0, 0], [80, 0], [40, 60]]},
             {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
             {"key": "alpha", "type": "int[0..255]", "default": 255},
             {"key": "width", "type": "int (0=fill)", "default": 0},
+            {"key": "priority", "type": "int", "default": 40},
         ],
         "outline": [
             {"key": "width", "type": "int", "default": 1},
             {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
+            {"key": "priority", "type": "int", "default": 60},
         ],
         "text": [
             {"key": "bind", "type": "String[path]", "default": "__text"},
@@ -47,11 +51,13 @@ class UIEditor:
             {"key": "placeholderColor", "type": "String[Hex]|String[var]", "default": "$theme.text.placeholder_color"},
             {"key": "caretColor", "type": "String[Hex]|String[var]", "default": "$theme.caret.color"},
             {"key": "caretBlinkRate", "type": "float", "default": 0.5},
+            {"key": "wrap", "type": "bool", "default": False},
             {"key": "maxLength", "type": "int", "default": 24},
             {"key": "blurOnEnter", "type": "bool", "default": True},
             {"key": "editingFlag", "type": "String[var]", "default": "__editingText"},
             {"key": "submitEvent", "type": "String[event]", "default": ""},
             {"key": "submitScope", "type": "Array[String[path]]", "default": []},
+            {"key": "priority", "type": "int", "default": 50},
         ],
         "input": [
             {"key": "mouseup.left", "type": "Object[rule]", "default": {"duration": 0, "emit": "", "scope": []}, "allow_multiple": True},
@@ -99,6 +105,7 @@ class UIEditor:
             {"key": "alpha", "type": "int[0..255]", "default": 255},
             {"key": "tint", "type": "String[Hex]|Array[int,int,int]", "default": "#FFFFFF"},
             {"key": "tintAlpha", "type": "int[0..255]", "default": 120},
+            {"key": "priority", "type": "int", "default": 30},
         ],
         "dynamicValue": [
             {"key": "__var", "type": "Object[dynamicRule]", "default": {"type": "loop", "min": 0, "max": 1, "speed": 1.0, "round": False}, "allow_multiple": True},
@@ -111,6 +118,8 @@ class UIEditor:
             {"key": "size_min", "type": "float", "default": 2},
             {"key": "size_max", "type": "float", "default": 6},
             {"key": "spawn_pos", "type": "Array[String|float]", "default": ["__middle", "__middle"]},
+            {"key": "fade_in_min", "type": "float", "default": 0.0},
+            {"key": "fade_in_max", "type": "float", "default": 0.0},
             {"key": "colors", "type": "Array[String[Hex]|Array[int,int,int]|String[var]]", "default": ["#FFFFFF"]},
             {"key": "blend", "type": "int", "default": 0},
             {"key": "speed_min", "type": "float", "default": 10},
@@ -124,6 +133,7 @@ class UIEditor:
             {"key": "rot_min", "type": "float", "default": 0.0},
             {"key": "rot_max", "type": "float", "default": 360.0},
             {"key": "particle_shapes", "type": "Array[String[circle|square|star]]", "default": ["circle"]},
+            {"key": "priority", "type": "int", "default": 20},
         ],
     }
 

@@ -125,7 +125,8 @@ Renders text and supports editable mode with caret/focus.
   "caretBlinkRate": "$theme.caret.blink_rate",
   "maxLength": 24,
   "blurOnEnter": true,
-  "editingFlag": "__editingText"
+  "editingFlag": "__editingText",
+  "wrap": false
 }
 ```
 
@@ -135,6 +136,9 @@ Binding supports external state:
 Alignment options:
 - `align`: `left` | `center` | `right`
 - `verticalAlign`: `top` | `middle` | `bottom`
+
+Wrap option:
+- `wrap`: When `true` the text will be wrapped to fit the element container width and clipped to the container height (adds ellipsis when truncated). Default: `false`.
 
 ---
 
@@ -290,4 +294,69 @@ Notes:
 - The component computes hover using the element's `container` rect — ensure the element has a `container` component so it has bounds.
 - Emitted payloads automatically include `source` (the emitting element path) and `trigger` (e.g., `hover.start` / `hover.end`). If you provide `eventData`, its keys are merged into the payload.
 - `scope` supports the usual values including the special token `__self` (see `docs/Development/UI/special_events.md`) to target the emitter itself or `__self.<subpath>` to target a child path of the emitter.
+
+---
+
+## 12) `particle`
+Particle emitter component — lightweight particle spawning and rendering for effects like smoke, sparks, and confetti.
+
+Configuration (example):
+
+```json
+"particle": {
+  "spawn_pos": ["center", "center"],
+  "size_min": 2,
+  "size_max": 6,
+  "colors": ["#FFFFFF", "#FFCC00"],
+  "blend": 2,
+  "speed_min": 10,
+  "speed_max": 60,
+  "gravity_type": "none",
+  "gravity_strength": 0.0,
+  "gravity_direction": 90.0,
+  "num_max": 200,
+  "spawn_rate_min": 5.0,
+  "spawn_rate_max": 10.0,
+  "rot_min": 0.0,
+  "rot_max": 360.0,
+  "particle_shapes": ["circle"]
+}
+```
+
+Fields:
+- `spawn_pos`: Where particles originate. Accepts anchor tokens (`topleft`, `top`, `topright`, `left`, `center`/`__middle`, `right`, `bottomleft`, `bottom`, `bottomright`), fractional coordinates (0..1), absolute pixel offsets, or an array mixing those. Default: `["__middle","__middle"]`.
+- `size_min`, `size_max`: Size range in pixels.
+- `fade_in_min`, `fade_in_max`: Fade-in duration range in seconds per particle (lerps alpha from 0 → color alpha). Default: `0.0` (no fade).
+- `colors`: Array of color specifications (hex strings, arrays, or theme/var refs).
+- `blend`: Integer — number of interpolation steps between listed colors (0 = no interpolation).
+- `speed_min`, `speed_max`: Initial speed range (pixels/sec) — emitters launch particles outward from the element center by default.
+- `gravity_type`: `none` | `direction` | `spiral` — affects how gravity influences particle motion. `direction` applies a constant directional acceleration, `spiral` applies a centripetal/spiral influence toward the center.
+- `gravity_strength`: Magnitude of gravity effect (float).
+- `gravity_direction`: Direction in degrees for `direction` gravity (0..360, where 90 is up in this system).
+- `num_max`: Maximum concurrent particles.
+- `spawn_rate_min`, `spawn_rate_max`: Particles spawned per second (random between min/max).
+- `rot_min`, `rot_max`: Initial angular velocity range (degrees per second).
+- `particle_shapes`: Array of shapes: `circle`, `square`, `star`.
+
+Behavior notes:
+- Particles are spawned at `spawn_pos` and are initialized to move outward from the element center. Gravity modifies that movement pattern.
+- Particles do not use a lifetime field — they are removed only after they move outside the manager surface bounds (with a small margin).
+- The component reads its `config` every frame, so changes made in the editor apply immediately.
+- For heavy use please limit `num_max` and `spawn_rate_*` for performance.
+
+---
+
+## Draw Priority (component `priority`)
+Components support a numeric `priority` that controls their draw order. Higher `priority` values draw later (on top). You can set `priority` in a component's config or use the editor field exposed for common components.
+
+Default priorities (can be overridden per-component):
+- `colorRect`: 10
+- `particle`: 20
+- `image`: 30
+- `polygon`: 40
+- `text`: 50
+- `outline`: 60
+- `container`: 70 (container cropping layers drawn last so outlines and overlays remain visible)
+
+Use `priority` when you need fine-grained control over render stacking for overlays, particles, and outlines.
 

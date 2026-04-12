@@ -13,11 +13,27 @@
             "opts": {
                 "padding": [30,30]
             }
+        },
+        "particle": {
+            "gravity_type": "direction",
+            "gravity_direction": 270.0,
+            "gravity_strength": 6,
+            "spawn_pos": [
+                "__middle",
+                -200
+            ],
+            "spawn_rate_min": 0.5,
+            "spawn_rate_max": 1.0,
+            "fade_in_min": 20.0,
+            "fade_in_max": 10.0,
+            "colors": [
+                "#FFFFFF22"
+            ]
         }
     },
     "screen.settings-bg": {
         "data": {
-            "__visible": true
+            "__visible": false
         },
         "container": {
             "pos": [
@@ -58,7 +74,9 @@
                 "__middle"
             ],
             "size": [1224,748],
-            "keywords": [],
+            "keywords": [
+                "crop"
+            ],
             "opts": {
                 "padding": [40,40]
             }
@@ -69,6 +87,19 @@
         "outline": {
             "width": 10,
             "color": "#606060"
+        },
+        "particle": {
+            "colors": [
+                "#FFFFFF22"
+            ],
+            "gravity_type": "spiral",
+            "gravity_strength": 2,
+            "num_max": 200,
+            "spawn_rate_min": 1.0,
+            "spawn_rate_max": 2.0,
+            "priority": 20,
+            "fade_in_min": 10,
+            "fade_in_max": 20
         }
     },
     "screen.settings-bg.settings-menu.settings-header": {
@@ -126,7 +157,10 @@
         },
         "input": {
             "mouseup.left": {
-                "emit": "game.exit"
+                "emit": "quit-popup-toggle",
+                "scope": [
+                    "screen.quit-conformation-menu"
+                ]
             }
         },
         "text": {
@@ -202,6 +236,133 @@
                     "screen.settings-bg"
                 ]
             }
+        }
+    },
+    "screen.quit-conformation-menu": {
+        "data": {
+            "__visible": false
+        },
+        "container": {
+            "pos": [
+                "__middle",
+                "__middle"
+            ],
+            "size": [496,314],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {
+                "padding": [30,30]
+            }
+        },
+        "colorRect": {
+            "color": "$theme.pallet.gray1"
+        },
+        "outline": {
+            "width": 10,
+            "color": "$theme.pallet.gray2"
+        },
+        "eventReader": {
+            "quit-popup-toggle": {
+                "actions": [
+                    {
+                        "toggleValue": {
+                            "var": "__visible"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "screen.quit-conformation-menu.Yes": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [0,124],
+            "size": [209,130],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#165213FF"
+        },
+        "outline": {
+            "width": 10,
+            "color": "$theme.pallet.gray2"
+        },
+        "text": {
+            "placeholder": "Yes",
+            "align": "middle",
+            "verticalAlign": "middle",
+            "fontSize": 66
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "game.exit"
+            }
+        }
+    },
+    "screen.quit-conformation-menu.No": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [224,123],
+            "size": [212,131],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#640006FF"
+        },
+        "outline": {
+            "width": 10,
+            "color": "$theme.pallet.gray2"
+        },
+        "text": {
+            "fontSize": 66,
+            "align": "middle",
+            "verticalAlign": "middle",
+            "placeholder": "No"
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "quit-popup-toggle",
+                "scope": [
+                    "screen.quit-conformation-menu"
+                ]
+            }
+        }
+    },
+    "screen.quit-conformation-menu.text": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [
+                "__middle",
+                0
+            ],
+            "size": [351,89],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {}
+        },
+        "text": {
+            "placeholder": "Are you sure you want to exit the game?",
+            "fontSize": 43,
+            "align": "center",
+            "verticalAlign": "center",
+            "wrap": true
         }
     }
 }

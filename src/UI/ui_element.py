@@ -36,10 +36,32 @@ class UIelement:
         if clip_rect is not None:
             surface.set_clip(old_clip.clip(clip_rect))
 
-        for component_name in self.component_order:
-            component = self.components[component_name]
-            if hasattr(component, "draw"):
-                component.draw(surface)
+        # Collect drawable components and sort by numeric `priority` (from config/property).
+        # Higher priority values are drawn later (on top). Preserve `component_order` for equal priorities.
+        order_index = {name: i for i, name in enumerate(self.component_order)}
+        drawables = []
+        for name, comp in self.components.items():
+            if comp is None:
+                continue
+            if not hasattr(comp, "draw"):
+                continue
+            try:
+                pr = int(getattr(comp, "priority", 0))
+            except Exception:
+                try:
+                    pr = int(comp.config.get("priority", 0))
+                except Exception:
+                    pr = 0
+            idx = order_index.get(name, 0)
+            drawables.append((pr, idx, comp))
+
+        drawables.sort(key=lambda t: (t[0], t[1]))
+        for _pr, _idx, comp in drawables:
+            try:
+                comp.draw(surface)
+            except Exception:
+                # avoid drawing errors breaking the loop
+                continue
 
         surface.set_clip(old_clip)
 

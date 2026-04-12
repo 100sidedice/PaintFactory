@@ -43,6 +43,10 @@ class ParticleComponent(UIComponent):
 
         self.num_max = int(cfg.get("num_max", 200))
 
+        # fade-in duration range (seconds)
+        self.fade_in_min = float(cfg.get("fade_in_min", 0.0))
+        self.fade_in_max = float(cfg.get("fade_in_max", 0.0))
+
         self.gravity_type = str(cfg.get("gravity_type", "none") or "none")
         self.gravity_strength = float(cfg.get("gravity_strength", cfg.get("gravity", 0.0)))
         self.gravity_direction = float(cfg.get("gravity_direction", 90.0))
@@ -159,8 +163,39 @@ class ParticleComponent(UIComponent):
         if rect is None:
             return
 
-        # Refresh palette in case bound values changed
+        # Refresh configuration each frame so editor changes apply immediately
+        cfg = self.config or {}
+        try:
+            self.size_min = float(cfg.get("size_min", self.size_min))
+            self.size_max = float(cfg.get("size_max", self.size_max))
+            self.speed_min = float(cfg.get("speed_min", self.speed_min))
+            self.speed_max = float(cfg.get("speed_max", self.speed_max))
+            self.rot_min = float(cfg.get("rot_min", self.rot_min))
+            self.rot_max = float(cfg.get("rot_max", self.rot_max))
+            self.spawn_rate_min = float(cfg.get("spawn_rate_min", self.spawn_rate_min))
+            self.spawn_rate_max = float(cfg.get("spawn_rate_max", self.spawn_rate_max))
+            self.num_max = int(cfg.get("num_max", self.num_max))
+            self.gravity_type = str(cfg.get("gravity_type", self.gravity_type) or "none")
+            self.gravity_strength = float(cfg.get("gravity_strength", cfg.get("gravity", self.gravity_strength)))
+            self.gravity_direction = float(cfg.get("gravity_direction", self.gravity_direction))
+            self.blend = int(cfg.get("blend", self.blend))
+            self.fade_in_min = float(cfg.get("fade_in_min", self.fade_in_min))
+            self.fade_in_max = float(cfg.get("fade_in_max", self.fade_in_max))
+        except Exception:
+            pass
+
+        shapes = cfg.get("particle_shapes") or cfg.get("particle_shape") or self.shapes
+        if isinstance(shapes, str):
+            shapes = [s.strip() for s in shapes.split(",") if s.strip()]
+        self.shapes = [s for s in shapes if s in ("circle", "square", "star")] or ["circle"]
+
+        raw_colors = cfg.get("colors") or cfg.get("color") or self._raw_colors
+        if isinstance(raw_colors, (str, dict)):
+            raw_colors = [raw_colors]
+        self._raw_colors = raw_colors
         self._palette = self._build_palette(self._raw_colors, self.blend)
+
+        self.spawn_pos = cfg.get("spawn_pos", self.spawn_pos)
 
         # spawn logic
         rate = random.uniform(self.spawn_rate_min, self.spawn_rate_max)
@@ -201,19 +236,77 @@ class ParticleComponent(UIComponent):
             p["y"] += p["vy"] * delta
             p["rot"] += p["rot_v"] * delta
 
+            # advance age for fade-in
+            p["age"] = p.get("age", 0.0) + delta
+
             # remove only when outside manager surface
             keep = True
             try:
                 screen_rect = self.manager.surface.get_rect()
                 # allow a small margin equal to particle size
                 margin = max(16, int(p.get("size", 2) * 4))
-                if (
-                    p["x"] < screen_rect.left - margin
-                    or p["x"] > screen_rect.right + margin
-                    or p["y"] < screen_rect.top - margin
-                    or p["y"] > screen_rect.bottom + margin
-                ):
-                    keep = False
+                # If gravity is a directional axis-aligned (0/90/180/270), allow
+                # particles to exist off-screen on the opposite side of the gravity
+                # vector so emitters placed off-screen can stream into view.
+                def _angle_diff(a, b):
+                    d = abs(((a - b + 180.0) % 360.0) - 180.0)
+                    return d
+
+                if self.gravity_type == "direction":
+                    gd = float(self.gravity_direction) % 360.0
+                    tol = 5.0
+                    # vertical gravity
+                    if _angle_diff(gd, 270.0) <= tol:
+                        # gravity down: kill when below bottom or outside left/right
+                        if (
+                            p["y"] > screen_rect.bottom + margin
+                            or p["x"] < screen_rect.left - margin
+                            or p["x"] > screen_rect.right + margin
+                        ):
+                            keep = False
+                    elif _angle_diff(gd, 90.0) <= tol:
+                        # gravity up: kill when above top or outside left/right
+                        if (
+                            p["y"] < screen_rect.top - margin
+                            or p["x"] < screen_rect.left - margin
+                            or p["x"] > screen_rect.right + margin
+                        ):
+                            keep = False
+                    # horizontal gravity
+                    elif _angle_diff(gd, 0.0) <= tol:
+                        # gravity right: kill when past right or outside top/bottom
+                        if (
+                            p["x"] > screen_rect.right + margin
+                            or p["y"] < screen_rect.top - margin
+                            or p["y"] > screen_rect.bottom + margin
+                        ):
+                            keep = False
+                    elif _angle_diff(gd, 180.0) <= tol:
+                        # gravity left: kill when past left or outside top/bottom
+                        if (
+                            p["x"] < screen_rect.left - margin
+                            or p["y"] < screen_rect.top - margin
+                            or p["y"] > screen_rect.bottom + margin
+                        ):
+                            keep = False
+                    else:
+                        # non-axis-aligned direction: default full-cull when fully outside
+                        if (
+                            p["x"] < screen_rect.left - margin
+                            or p["x"] > screen_rect.right + margin
+                            or p["y"] < screen_rect.top - margin
+                            or p["y"] > screen_rect.bottom + margin
+                        ):
+                            keep = False
+                else:
+                    # non-direction gravity or none: default full-cull when fully outside
+                    if (
+                        p["x"] < screen_rect.left - margin
+                        or p["x"] > screen_rect.right + margin
+                        or p["y"] < screen_rect.top - margin
+                        or p["y"] > screen_rect.bottom + margin
+                    ):
+                        keep = False
             except Exception:
                 pass
 
@@ -226,11 +319,32 @@ class ParticleComponent(UIComponent):
         # determine spawn origin based on spawn_pos config
         sx, sy = self.spawn_pos if isinstance(self.spawn_pos, (list, tuple)) else (self.spawn_pos, self.spawn_pos)
 
-        def resolve_coord(val, start, length):
-            # val may be '__middle', a float fraction (0..1), or an absolute number
+        def resolve_coord(val, start, length, axis):
+            # val may be '__middle' or anchor tokens, a float fraction (0..1), or an absolute number
             try:
-                if isinstance(val, str) and val.strip() == "__middle":
-                    return start + length / 2.0
+                if isinstance(val, str):
+                    t = val.strip().lower()
+                    # allow tokens with leading underscores (e.g. '__top') by normalizing
+                    t_norm = t.lstrip("_")
+                    if t_norm == "middle" or t_norm == "center" or t_norm == "__middle":
+                        return start + length / 2.0
+                    # combined anchors like 'topleft' map to both axes when given as single string
+                    if t_norm in ("topleft", "topright", "bottomleft", "bottomright"):
+                        if axis == "x":
+                            return start if t_norm.endswith("left") else start + length
+                        else:
+                            return start if t_norm.startswith("top") else start + length
+                    # axis-specific tokens
+                    if axis == "x":
+                        if t_norm in ("left",):
+                            return start
+                        if t_norm in ("right",):
+                            return start + length
+                    else:
+                        if t_norm in ("top",):
+                            return start
+                        if t_norm in ("bottom",):
+                            return start + length
                 f = float(val)
                 if 0.0 <= f <= 1.0:
                     return start + f * length
@@ -238,25 +352,19 @@ class ParticleComponent(UIComponent):
             except Exception:
                 return start + length / 2.0
 
-        x = resolve_coord(sx, rect.left, rect.width)
-        y = resolve_coord(sy, rect.top, rect.height)
-
-        # pick a direction outward from the center of the element
-        center_x = rect.left + rect.width / 2.0
-        center_y = rect.top + rect.height / 2.0
-        # direction vector from center to spawn point (if spawn at center, choose random)
-        dx = x - center_x
-        dy = y - center_y
-        if abs(dx) < 1e-3 and abs(dy) < 1e-3:
-            angle = random.uniform(0, math.tau)
-            dx = math.cos(angle)
-            dy = math.sin(angle)
-        # normalize
-        mag = math.hypot(dx, dy)
-        if mag == 0:
-            nx, ny = 1.0, 0.0
+        # allow single combined anchor string like 'topleft' as spawn_pos
+        if isinstance(self.spawn_pos, str):
+            sp = self.spawn_pos
+            x = resolve_coord(sp, rect.left, rect.width, "x")
+            y = resolve_coord(sp, rect.top, rect.height, "y")
         else:
-            nx, ny = dx / mag, dy / mag
+            x = resolve_coord(sx, rect.left, rect.width, "x")
+            y = resolve_coord(sy, rect.top, rect.height, "y")
+
+        # pick a random initial direction so spawn_pos affects only position
+        angle = random.uniform(0, math.tau)
+        nx = math.cos(angle)
+        ny = math.sin(angle)
 
         speed = random.uniform(self.speed_min, self.speed_max)
         vx = nx * speed
@@ -265,7 +373,12 @@ class ParticleComponent(UIComponent):
         rot_v = math.radians(random.uniform(self.rot_min, self.rot_max))
         color = random.choice(self._palette) if self._palette else (255, 255, 255, 255)
         shape = random.choice(self.shapes)
-        p = {"x": x, "y": y, "vx": vx, "vy": vy, "size": size, "color": color, "rot": 0.0, "rot_v": rot_v, "shape": shape}
+        # determine per-particle fade duration
+        try:
+            fade = float(random.uniform(self.fade_in_min, self.fade_in_max))
+        except Exception:
+            fade = 0.0
+        p = {"x": x, "y": y, "vx": vx, "vy": vy, "size": size, "color": color, "rot": 0.0, "rot_v": rot_v, "shape": shape, "age": 0.0, "fade": fade}
         self.particles.append(p)
 
     def draw(self, surface):
@@ -275,14 +388,32 @@ class ParticleComponent(UIComponent):
         for p in self.particles:
             col = p.get("color", (255, 255, 255, 255))
             size = int(max(1, p.get("size", 2)))
-            if col[3] >= 255:
+            # determine target alpha from color tuple
+            try:
+                target_alpha = int(col[3]) if len(col) > 3 else 255
+            except Exception:
+                target_alpha = 255
+
+            # compute current alpha based on fade-in
+            fade = float(p.get("fade", 0.0))
+            age = float(p.get("age", 0.0))
+            if fade > 0.0:
+                t = max(0.0, min(1.0, age / fade))
+            else:
+                t = 1.0
+            alpha = int(target_alpha * t)
+            if alpha <= 0:
+                continue
+
+            rgb = col[:3]
+
+            if alpha >= 255:
                 if p["shape"] == "circle":
-                    pygame.draw.circle(surface, col[:3], (int(p["x"]), int(p["y"])), size)
+                    pygame.draw.circle(surface, rgb, (int(p["x"]), int(p["y"])), size)
                 elif p["shape"] == "square":
                     rect = pygame.Rect(int(p["x"] - size / 2), int(p["y"] - size / 2), size, size)
-                    pygame.draw.rect(surface, col[:3], rect)
+                    pygame.draw.rect(surface, rgb, rect)
                 else:
-                    # simple star approximation using polygon
                     pts = []
                     cx = p["x"]
                     cy = p["y"]
@@ -292,17 +423,17 @@ class ParticleComponent(UIComponent):
                         pts.append((int(cx + math.cos(a) * r), int(cy + math.sin(a) * r)))
                         a2 = math.radians(i * 72 + 36 + p.get("rot", 0))
                         pts.append((int(cx + math.cos(a2) * (r / 2)), int(cy + math.sin(a2) * (r / 2))))
-                    pygame.draw.polygon(surface, col[:3], pts)
+                    pygame.draw.polygon(surface, rgb, pts)
             else:
-                # draw with alpha on temporary surface
                 surf = pygame.Surface((size * 4, size * 4), pygame.SRCALPHA)
                 ox = size * 2
                 oy = size * 2
+                draw_col = (rgb[0], rgb[1], rgb[2], alpha)
                 if p["shape"] == "circle":
-                    pygame.draw.circle(surf, col, (ox, oy), size)
+                    pygame.draw.circle(surf, draw_col, (ox, oy), size)
                 elif p["shape"] == "square":
                     r = pygame.Rect(ox - size // 2, oy - size // 2, size, size)
-                    pygame.draw.rect(surf, col, r)
+                    pygame.draw.rect(surf, draw_col, r)
                 else:
                     pts = []
                     cx = ox
@@ -313,5 +444,5 @@ class ParticleComponent(UIComponent):
                         pts.append((int(cx + math.cos(a) * r), int(cy + math.sin(a) * r)))
                         a2 = math.radians(i * 72 + 36 + p.get("rot", 0))
                         pts.append((int(cx + math.cos(a2) * (r / 2)), int(cy + math.sin(a2) * (r / 2))))
-                    pygame.draw.polygon(surf, col, pts)
+                    pygame.draw.polygon(surf, draw_col, pts)
                 surface.blit(surf, (int(p["x"] - ox), int(p["y"] - oy)))

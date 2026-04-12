@@ -152,30 +152,89 @@ class TextComponent(UIComponent):
 
         draw_text = value if value else placeholder
         color = text_color if value else placeholder_color
-        text_surf = font.render(draw_text, True, color)
-        text_w = text_surf.get_width()
-        text_h = text_surf.get_height()
+        wrap_enabled = bool(self.config.get("wrap", False))
 
-        align = str(self.config.get("align", "left") or "left").strip().lower()
-        if align in {"center", "middle"}:
-            text_x = content_x + (content_w - text_w) // 2
-        elif align in {"right", "end"}:
-            text_x = content_x + content_w - text_w
+        # prepare lines (either single line or wrapped)
+        lines = []
+        if not draw_text:
+            lines = [""]
         else:
-            text_x = content_x
+            if not wrap_enabled:
+                lines = [draw_text]
+            else:
+                # wrap by words to fit content_w
+                raw_lines = draw_text.split("\n")
+                for rl in raw_lines:
+                    words = rl.split(" ")
+                    cur = ""
+                    for w in words:
+                        candidate = w if cur == "" else cur + " " + w
+                        w_surf = font.render(candidate, True, color)
+                        if w_surf.get_width() <= content_w:
+                            cur = candidate
+                        else:
+                            if cur != "":
+                                lines.append(cur)
+                            # if single word longer than width, break the word
+                            if font.render(w, True, color).get_width() > content_w and len(w) > 1:
+                                # crude char-level break
+                                part = ""
+                                for ch in w:
+                                    cand2 = part + ch
+                                    if font.render(cand2, True, color).get_width() <= content_w:
+                                        part = cand2
+                                    else:
+                                        if part:
+                                            lines.append(part)
+                                        part = ch
+                                if part:
+                                    cur = part
+                                else:
+                                    cur = ""
+                            else:
+                                cur = w
+                    if cur != "":
+                        lines.append(cur)
 
+        # measure lines and clip to content_h (ellipsis last line if needed)
+        line_surfaces = [font.render(l, True, color) for l in lines]
+        line_h = font.get_height()
+        max_lines = max(1, content_h // line_h) if line_h > 0 else len(line_surfaces)
+        if len(line_surfaces) > max_lines:
+            # truncate and add ellipsis to last visible line
+            line_surfaces = line_surfaces[:max_lines]
+            last_text = lines[max_lines - 1]
+            ell = "..."
+            # shorten last_text until it fits with ellipsis
+            while last_text and font.render(last_text + ell, True, color).get_width() > content_w:
+                last_text = last_text[:-1]
+            line_surfaces[-1] = font.render((last_text + ell) if last_text else ell, True, color)
+
+        # horizontal alignment
+        align = str(self.config.get("align", "left") or "left").strip().lower()
+        # vertical alignment for block of lines
+        block_h = len(line_surfaces) * line_h
         vertical_align = self.config.get("verticalAlign", self.config.get("valign", "top"))
         vertical_align = str(vertical_align or "top").strip().lower()
         if vertical_align in {"center", "middle"}:
-            text_y = content_y + (content_h - text_h) // 2
+            text_y = content_y + (content_h - block_h) // 2
         elif vertical_align in {"bottom", "end"}:
-            text_y = content_y + content_h - text_h
+            text_y = content_y + content_h - block_h
         else:
             text_y = content_y
 
         old_clip = surface.get_clip()
         surface.set_clip(old_clip.clip(rect))
-        surface.blit(text_surf, (text_x, text_y))
+        # blit each line
+        for idx, ls in enumerate(line_surfaces):
+            lw = ls.get_width()
+            if align in {"center", "middle"}:
+                text_x = content_x + (content_w - lw) // 2
+            elif align in {"right", "end"}:
+                text_x = content_x + content_w - lw
+            else:
+                text_x = content_x
+            surface.blit(ls, (text_x, text_y + idx * line_h))
 
         if self.focused and self._is_editable():
             phase = (self._blink_elapsed % (blink_rate * 2.0))
