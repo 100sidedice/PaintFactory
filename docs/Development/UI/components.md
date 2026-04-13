@@ -37,6 +37,27 @@ Grid:
 - `gap` (`[x,y]` or number)
 - `cellSize` (`[w,h]`)
 
+Example (grid layout):
+
+```json
+"container": {
+  "pos": [20, 20],
+  "size": [320, 240],
+  "keywords": ["grid"],
+  "opts": {
+    "columns": 3,
+    "gap": [8, 8],
+    "cellSize": [96, 96],
+    "gridPadding": [8, 8]
+  },
+  "children": [
+    {"path": "items.slot1", "components": {"image": {"path": "Assets/item1.png", "size": [96,96]}}},
+    {"path": "items.slot2", "components": {"colorRect": {"color": "#FFCC66"}}},
+    {"path": "items.slot3", "components": {"text": {"bind": "__label3", "fontSize": 14}}}
+  ]
+}
+```
+
 Scroll:
 - `limits`: `element` | `values` | `infinite`
 - `scrollSpeed`

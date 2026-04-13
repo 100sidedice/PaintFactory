@@ -87,6 +87,46 @@ class ContainerComponent(UIComponent):
     def _opts(self):
         return self.config.get("opts", {})
 
+    def _resolve_value(self, value, default=None):
+        """Resolve runtime variable tokens and theme lookups.
+
+        - Strings starting with `__` are looked up on the element via `get_data`.
+        - Strings starting with `$theme.` are looked up via manager.callData.
+        - If `value` is a list/tuple/dict, resolve recursively.
+        """
+        # simple pass-through
+        if value is None:
+            return default
+
+        # recursive for lists/tuples
+        if isinstance(value, (list, tuple)):
+            out = []
+            for v in value:
+                out.append(self._resolve_value(v, None))
+            return out
+
+        if isinstance(value, dict):
+            out = {}
+            for k, v in value.items():
+                out[k] = self._resolve_value(v, None)
+            return out
+
+        if isinstance(value, str):
+            if value.startswith("__"):
+                try:
+                    return self.element.get_data(value, default)
+                except Exception:
+                    return default
+            if value.startswith("$theme."):
+                try:
+                    return self.manager.callData(f"themeDefaults.{value[7:]}", default)
+                except Exception:
+                    return default
+            # plain string — return as-is
+            return value
+
+        return value
+
     def _input_passcodes(self):
         """Optional passcode or passcode list allowed to read input while locked."""
         return self._opts().get("inputPasscodes", None)
@@ -345,15 +385,23 @@ class ContainerComponent(UIComponent):
             return
 
         opts = self._opts()
-        cols = int(opts.get("columns", 1) or 1)
+        cols = int(self._resolve_value(opts.get("columns", 1), 1) or 1)
         cols = max(1, cols)
 
-        gap_value = opts.get("gap", [0, 0])
+        gap_value = self._resolve_value(opts.get("gap", [0, 0]), [0, 0])
         if isinstance(gap_value, (int, float)):
             gap_x = gap_y = int(gap_value)
         else:
-            gap_x = int(gap_value[0]) if len(gap_value) > 0 else 0
-            gap_y = int(gap_value[1]) if len(gap_value) > 1 else gap_x
+            gx = gap_value[0] if len(gap_value) > 0 else 0
+            gy = gap_value[1] if len(gap_value) > 1 else gx
+            try:
+                gap_x = int(gx)
+            except Exception:
+                gap_x = int(float(gx) if isinstance(gx, (int, float, str)) and str(gx).replace('.', '', 1).isdigit() else 0)
+            try:
+                gap_y = int(gy)
+            except Exception:
+                gap_y = int(float(gy) if isinstance(gy, (int, float, str)) and str(gy).replace('.', '', 1).isdigit() else gap_x)
 
         stretch_x, stretch_y = self._stretch_axis()
         pad_context = "stretch" if (stretch_x or stretch_y) else "grid"
@@ -388,8 +436,9 @@ class ContainerComponent(UIComponent):
         rows = max(1, math.ceil(len(children) / cols))
 
         if cell_size is not None:
-            base_cw = int(cell_size[0]) if len(cell_size) > 0 else 0
-            base_ch = int(cell_size[1]) if len(cell_size) > 1 else 0
+            cs = self._resolve_value(cell_size, None)
+            base_cw = int(cs[0]) if isinstance(cs, (list, tuple)) and len(cs) > 0 else 0
+            base_ch = int(cs[1]) if isinstance(cs, (list, tuple)) and len(cs) > 1 else 0
         else:
             widths = [c._base_size()[0] for c in children]
             heights = [c._base_size()[1] for c in children]

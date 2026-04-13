@@ -3,6 +3,7 @@ import os
 import math
 import colorsys
 import ast
+import re
 import random
 import pyperclip
 
@@ -20,6 +21,21 @@ class UIEditor:
             {"key": "opts", "type": "Object", "default": {}},
             {"key": "padding", "type": "Array[int,int] (opts)", "default": [0, 0]},
             {"key": "priority", "type": "int", "default": 70},
+            {"key": "columns", "type": "int (opts.grid)", "default": 0},
+            {"key": "gap", "type": "Array[int,int] (opts.grid)", "default": [0, 0]},
+            {"key": "cellSize", "type": "Array[int,int] (opts.grid)", "default": [0, 0]},
+            {"key": "gridPadding", "type": "Array[int,int] (opts.grid)", "default": [0, 0]},
+            {"key": "limits", "type": "String[element|values|infinite] (opts.scroll)", "default": "element"},
+            {"key": "scrollSpeed", "type": "float (opts.scroll)", "default": 18.0},
+            {"key": "scrollImpulse", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "scrollDamping", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "scrollX", "type": "bool (opts.scroll)", "default": False},
+            {"key": "scrollY", "type": "bool (opts.scroll)", "default": False},
+            {"key": "minX", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "maxX", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "minY", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "maxY", "type": "float (opts.scroll)", "default": 0.0},
+            {"key": "overrideTransform", "type": "bool (opts.transform)", "default": True},
         ],
         "colorRect": [
             {"key": "color", "type": "String[Hex]|Array[int,int,int]|String[var]", "default": "#FFFFFF"},
@@ -630,7 +646,29 @@ class UIEditor:
 
     def _component_option_entries(self):
         base = self._component_base_name(self.selected_component)
-        return self.COMPONENT_OPTION_SCHEMAS.get(base, [])
+        entries = list(self.COMPONENT_OPTION_SCHEMAS.get(base, []))
+
+        # If a specific key path is selected (e.g. "opts>..."), show only
+        # options intended for the `opts` subtree. Otherwise hide opts-only
+        # entries and show only top-level component options.
+        sel_path = str(self.selected_component_path or "").strip()
+        sel_is_opts = sel_path.startswith("opts")
+
+        def is_opts_entry(e):
+            t = str(e.get("type", "") or "")
+            k = str(e.get("key", "") or "")
+            # Treat as opts-entry only when explicitly marked for opts
+            # by type string or when the key itself starts with 'opts'.
+            if "(opts" in t:
+                return True
+            if k.startswith("opts"):
+                return True
+            return False
+
+        if sel_is_opts:
+            return [e for e in entries if is_opts_entry(e)]
+        else:
+            return [e for e in entries if not is_opts_entry(e)]
 
     def _component_option_dropdown_rect(self):
         btn = self._component_option_button_rect()
@@ -2652,14 +2690,27 @@ class UIEditor:
         try:
             return json.loads(text)
         except Exception:
-            low = text.lower()
-            if low == "true":
-                return True
-            if low == "false":
-                return False
-            if low == "null":
-                return None
-            return text
+            # Allow unquoted variable tokens like __var or $theme.path inside
+            # arrays/objects by quoting them and retrying JSON parse. This lets
+            # users write `[8, __gapY]` or `{ "gap": [__gapX, __gapY] }` and
+            # treat `__gapY` as a variable/string token rather than failing
+            # parse.
+            try:
+                def _quote_var(m):
+                    return '"' + m.group(0) + '"'
+
+                # Match tokens starting with __ or $ (allow dots in $theme paths)
+                quoted = re.sub(r"\b(__[A-Za-z0-9_]+|\$[A-Za-z0-9_\.]+)\b", _quote_var, text)
+                return json.loads(quoted)
+            except Exception:
+                low = text.lower()
+                if low == "true":
+                    return True
+                if low == "false":
+                    return False
+                if low == "null":
+                    return None
+                return text
 
     def _to_int_field(self, key, default=0):
         try:
@@ -7511,21 +7562,53 @@ class UIEditor:
                         return
 
                     base = self._component_base_name(self.selected_component)
-                    if base == "container" and key == "padding":
+                    # Support several key formats:
+                    # - simple key: "padding"
+                    # - opts path: "opts.padding" or "opts>padding"
+                    # - prefixed context: "[grid] opts.columns"
+                    raw_key = str(entry.get("key", "") or "").strip()
+                    prefix = None
+                    import re
+
+                    m = re.match(r"^\[([^\]]+)\]\s*(.*)$", raw_key)
+                    if m:
+                        prefix = m.group(1)
+                        raw_key = m.group(2).strip()
+
+                    # normalize tokens using '.' or '>' separators
+                    tokens = [t for t in re.split(r"[.>]", raw_key) if t]
+                    is_opts_path = False
+                    if tokens and tokens[0] == "opts":
+                        is_opts_path = True
+                        opt_name = tokens[1] if len(tokens) > 1 else ""
+                    else:
+                        # infer opts intent from documented type string
+                        tstr = str(entry.get("type", "") or "")
+                        if "(opts" in tstr:
+                            is_opts_path = True
+                            opt_name = tokens[0] if tokens else ""
+
+                    if is_opts_path and opt_name:
                         opts_node = target_config.get("opts")
                         if not isinstance(opts_node, dict):
                             opts_node = {}
                             target_config["opts"] = opts_node
-                        if "padding" in opts_node:
-                            self._set_message("opts.padding already exists")
+                        if opt_name in opts_node:
+                            self._set_message(f"opts.{opt_name} already exists")
                             self.component_option_dropdown_open = False
                             return
 
-                        opts_node["padding"] = json.loads(json.dumps(entry.get("default")))
-                        selected.elmData[self.selected_component] = json.loads(json.dumps(target_config))
-                        self.selected_component_path = "opts>padding"
-                        self.fields["component_value"] = json.dumps(opts_node.get("padding"), indent=2)
-                        self._set_message("Added option opts>padding")
+                        opts_node[opt_name] = json.loads(json.dumps(entry.get("default")))
+                        # persist back to selected elmData
+                        if self.selected_component == "copy":
+                            selected.elmData["copy"] = str(target_config.get("value", ""))
+                        else:
+                            selected.elmData[self.selected_component] = json.loads(json.dumps(target_config))
+
+                        self.selected_component_path = f"opts>{opt_name}"
+                        self.fields["component_value"] = json.dumps(opts_node.get(opt_name), indent=2)
+                        note = f" (context: {prefix})" if prefix else ""
+                        self._set_message(f"Added option opts>{opt_name}{note}")
                         self.component_option_dropdown_open = False
                         return
 

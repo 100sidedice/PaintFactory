@@ -10,9 +10,7 @@
                 "static",
                 "globalParent"
             ],
-            "opts": {
-                "padding": [30,30]
-            }
+            "opts": {}
         },
         "particle": {
             "gravity_type": "direction",
@@ -176,7 +174,7 @@
             "__editingText": false
         },
         "container": {
-            "pos": [876,1],
+            "pos": [876,0],
             "size": [268,65],
             "keywords": [
                 "crop",
@@ -209,7 +207,7 @@
             "__editingText": false
         },
         "container": {
-            "pos": [1655,0],
+            "pos": [1678,34],
             "size": [205,67],
             "keywords": [
                 "crop"
@@ -363,6 +361,84 @@
             "align": "center",
             "verticalAlign": "center",
             "wrap": true
+        }
+    },
+    "screen.machineSidebar-left": {
+        "data": {
+            "__visible": true,
+            "__gapY": 11
+        },
+        "container": {
+            "pos": [0,0],
+            "size": [
+                131,
+                "__bottom"
+            ],
+            "keywords": [
+                "crop",
+                "grid"
+            ],
+            "opts": {
+                "padding": [10,10],
+                "columns": 1,
+                "gap": [
+                    0,
+                    "__gapY"
+                ]
+            }
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": 1,
+            "color": "#606060"
+        }
+    },
+    "screen.machineSidebar-left.machine-select0": {
+        "data": {
+            "__visible": true,
+            "__selected": false,
+            "__outlineColor": "#00B400FF"
+        },
+        "container": {
+            "pos": [0,0],
+            "size": [111,108],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": -3,
+            "color": "__outlineColor"
+        },
+        "image": {
+            "path": "Assets/conveyors.png",
+            "row": 0,
+            "col": 0,
+            "frameSize": [16,16],
+            "smooth": false
+        },
+        "input": {
+            "mouseup.left": {
+                "duration": 0,
+                "emit": "selected",
+                "scope": []
+            }
+        },
+        "eventReader": {
+            "event.name": {
+                "actions": [
+                    {
+                        "setValue": {
+                            "var": "__var",
+                            "value": true
+                        }
+                    }
+                ]
+            }
         }
     }
 }
