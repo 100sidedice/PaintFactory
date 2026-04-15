@@ -1,4 +1,10 @@
 {
+    "ALL" : {
+        "components": [
+            {"name": "ClickComponent", "data": {}},
+            {"name": "SelectComponent", "data": {}}
+        ]
+    },
     "spawner": {
         "image": "Assets/conveyor.png",
         "row": 0,

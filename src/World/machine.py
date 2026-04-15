@@ -11,6 +11,7 @@ class Machine:
 
         self.pos = pos
         self.machineManager = machineManager
+        self.input = machineManager.input
         
         # not setting self.spriteManager as we just need them to add the sprite, no need to keep a reference to it after that
         self.sprite = spriteManager.add_sprite(self.name, pos, self.rotation)
@@ -73,6 +74,9 @@ class Machine:
         """Call data related to this machine, such as the sprite or position. Used for components to get data from the machine without needing to know about the machine's internal structure."""
         if dataKey == "componentData":
             return self.componentData
+        
+        if dataKey == "gameState":
+            return GAME_STATE
 
         if dataKey.startswith("componentData."):
             segments = dataKey.split(".")
@@ -90,4 +94,5 @@ class Machine:
                 y = int(self.pos[1] * th)
                 return pygame.Rect(x, y, tw, th)
             case "sprite": return self.sprite
+            case "input": return self.input
             case _: return self.data.get(dataKey, None)

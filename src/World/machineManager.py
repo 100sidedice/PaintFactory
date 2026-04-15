@@ -2,11 +2,8 @@ from ..utils.gametimer import Timer
 from .machine import Machine
 from .item import Item
 
-#from main import GAME_STATE
-
-
 class MachineManager:
-    def __init__(self, spriteManager, data={}, GAME_STATE=None):
+    def __init__(self, spriteManager, data={}, GAME_STATE=None, Input=None):
         self.machines = []
         self.items = []
 
@@ -18,6 +15,7 @@ class MachineManager:
         self.spriteManager = spriteManager
         self.data = data
         self.GAME_STATE = GAME_STATE
+        self.input = Input
 
     def update(self, delta):
         self.timer.update(delta)

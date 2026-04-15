@@ -14,8 +14,10 @@ from .World.camera import Camera
 from .World.gameState import GameState
 
 from .utils.support import loadJson
+from .utils.asset_folders import FOLDER_HANDLERS, register_folder_handler
 
 import asyncio
+
 
 # Global game state singleton (initialized in Game.start)
 GAME_STATE = None
@@ -100,14 +102,24 @@ class Game:
 
                     return modules
 
-                loaded = await asyncio.to_thread(_load_modules_from_folder, abs_path, asset_name or "folder")
+                # special-case module folders
+                loaded = await asyncio.to_thread(_load_modules_from_folder, abs_path, asset_path)
             else:
-                def _list_folder(folder_path):
-                    if not os.path.isdir(folder_path):
-                        raise NotADirectoryError(f"Folder not found: {folder_path}")
-                    return [os.path.join(folder_path, name) for name in sorted(os.listdir(folder_path))]
+                # Use registered folder handlers (image, files, etc.) or fall back to listing
+                handler_key = inside_type or 'files'
+                handler = FOLDER_HANDLERS.get(handler_key)
+                if handler is not None:
+                    # run handler in thread to avoid blocking
+                    loaded = await asyncio.to_thread(handler, abs_path, asset_path)
+                else:
+                    # default: return list of relative file paths
+                    def _list_folder(folder_path):
+                        if not os.path.isdir(folder_path):
+                            raise NotADirectoryError(f"Folder not found: {folder_path}")
+                        return [name for name in sorted(os.listdir(folder_path)) if os.path.isfile(os.path.join(folder_path, name))]
 
-                loaded = await asyncio.to_thread(_list_folder, abs_path)
+                    entries = await asyncio.to_thread(_list_folder, abs_path)
+                    loaded = [os.path.join(asset_path, name).replace('\\', '/') for name in entries]
         else:
             raise ValueError(f"Unknown asset type: {asset_type}")
 
@@ -123,6 +135,7 @@ class Game:
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tsx", "name":"tilemap.background.tsx"},
             {"type":"image","path":"Assets/Tilemaps/backgroundmap.tileset.png", "name":"tilemap.background.image"},
             {"type":"folder", "path": "src/World/machineComponents", "name": "machineComponents", "insideType": "module"},
+            {"type":"folder", "path": "Assets/icons", "name": "icons", "insideType": "image"},
 
             {"type":"folder", "path": "src/UI/uiComponents", "name": "uiComponents", "insideType": "module"},
             {"type":"json", "path":"data/ui_elements.json", "name":"uiElements"},
@@ -131,9 +144,15 @@ class Game:
         tasks = [self.load_asset(asset) for asset in needed_assets]
         results = await asyncio.gather(*tasks)
         self.data = {}
-        for name, path, loaded in results:
+        for asset, (name, path, loaded) in zip(needed_assets, results):
             self.data[name] = loaded
             self.data[path] = loaded
+
+            # If a folder of images was loaded, also register individual images at top-level
+            if asset.get("type") == "folder" and asset.get("insideType") == "image" and isinstance(loaded, dict):
+                for key, surf in loaded.items():
+                    # key may be full relative path, basename, or name without extension
+                    self.data[key] = surf
 
 
 
@@ -145,11 +164,17 @@ class Game:
 
         self.camera = Camera(WIDTH, HEIGHT)
         self.sprite_manager = SpriteManager(self.camera, preloaded_assets=self.data)
-        self.machine_manager = MachineManager(self.sprite_manager, data=self.data, GAME_STATE=GAME_STATE)
+        self.input = Input()
+        self.machine_manager = MachineManager(self.sprite_manager, data=self.data, GAME_STATE=GAME_STATE, Input=self.input)
         self.tilemap = TilemapManager(self.camera, tile_size=(16, 16), preloaded_assets=self.data)
 
-        self.UI_manager = UIManager(self.data, input=Input, surface=self.screen, GAME_STATE=GAME_STATE, game=self)
+        self.UI_manager = UIManager(self.data, input=self.input, surface=self.screen, GAME_STATE=GAME_STATE, game=self)
         self.UI_manager.loadUIElements()
+
+        # Allow machine components to emit events to the UI manager.
+        # MachineManager instances get a reference to the UI manager so
+        # machine components can open UI menus or emit UI events.
+        self.machine_manager.ui_manager = self.UI_manager
 
         self.machine_manager.tilemap = self.tilemap
 
