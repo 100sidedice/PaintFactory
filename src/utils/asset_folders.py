@@ -15,7 +15,7 @@ def _load_images_from_folder(folder_abs_path, folder_rel_path):
     """Load image files from a folder and return a dict mapping multiple lookup keys
     to pygame.Surface objects: full relative path, basename, and name without ext.
     """
-    out = {}
+    out = {} 
     try:
         for entry in sorted(os.listdir(folder_abs_path)):
             full = os.path.join(folder_abs_path, entry)
