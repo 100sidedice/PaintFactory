@@ -36,11 +36,46 @@ class MachineManager:
         if machine_key not in machine_defs:
             return None
         MACHINE = Machine(machine_key, pos=pos, rotation=rotation, data=self.data, spriteManager=self.spriteManager, machineManager=self)
-        for component in self.data["machines"][machine_key]["machineData"]["components"]:
+        # Combine global default components (ALL) with machine-specific components
+        # Combine global default components (ALL) with machine-specific components
+        global_all = self.data["machines"]["ALL"]
+        all_components = list(global_all["components"]) + list(self.data["machines"][machine_key]["machineData"]["components"])
+
+        # Add components while allowing explicit duplicate instances via
+        # a `component-id` (or `id`) field. If no explicit id is present,
+        # avoid adding multiple components with the same base name.
+        seen_bases = set()
+        has_select = False
+        for component in all_components:
+            name_field = component["name"]
+            explicit_id = component.get("component-id") or component.get("id")
+
+            if explicit_id is not None:
+                base_name = str(name_field)
+                if "-" in base_name or str(explicit_id) in base_name:
+                    component_name = base_name
+                else:
+                    component_name = f"{base_name}-{explicit_id}"
+            else:
+                component_name = name_field
+                base_name = str(component_name).split("-", 1)[0]
+
+            if explicit_id is None and base_name in seen_bases:
+                continue
+
             component_data = dict(component["data"])
             if "offset" in component:
                 component_data["offset"] = component["offset"]
-            MACHINE.addComponent(component["name"], self.data, componentData=component_data)
+
+            MACHINE.addComponent(component_name, self.data, componentData=component_data)
+
+            seen_bases.add(base_name)
+            if base_name == "SelectComponent":
+                has_select = True
+
+        # Ensure every machine gets a SelectComponent so right-clicks are handled
+        if not has_select:
+            MACHINE.addComponent("SelectComponent", self.data, componentData={})
         
         self.machines.append(MACHINE)
         return MACHINE

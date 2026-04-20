@@ -17,23 +17,29 @@ class SelectComponent(Component):
     def update(self, items, delta):
         if getattr(self.input, "is_locked", lambda k: False)("click"):
             return
+        # SelectComponent no longer polls input directly; it listens for
+        # events pushed by the ClickComponent via `handleEvent`.
+        return
 
-        if self.input.get_mouse_up(3):
-            tileSize = 16
-            tw, th = tileSize, tileSize
-            x = int(self.machine.pos[0] * tw)
-            y = int(self.machine.pos[1] * th)
-            eventData = {"pos": [x, y], "source": f"machine.{self.machine.name}"}
+    def handleEvent(self, event, eventData, componentName, component):
+        # Listen for right-click events pushed by ClickComponent
+        if event != "i_have_been_clicked_via_a_right_click":
+            return
 
-            # If the machine manager has a UI manager attached, emit the UI event
-            ui_manager = getattr(self.machine.machineManager, "ui_manager", None)
-            if ui_manager is not None:
-                try:
-                    ui_manager.emit_event("ui.open_right_click_menu", eventData, source_element=None, componentName=self.name, component=self)
-                    return
-                except Exception:
-                    # fallback to machine event if UI emit fails
-                    pass
+        # Determine position from eventData (support Vector2 or list/tuple)
+        pos = eventData["pos"]
 
-            # fallback: push event through machines/managers
-            self.machine.pushEvent("ui.open_right_click_menu", eventData, componentName=self.name, component=self)
+        if isinstance(pos, pygame.Vector2):
+            x = int(pos.x)
+            y = int(pos.y)
+        else:
+            x = int(pos[0])
+            y = int(pos[1])
+
+        out_event = {"pos": [x, y], "source": f"machine.{self.machine.name}"}
+
+        print(f"Right-clicked machine (select via event): {self.machine.name} at {out_event['pos']}")
+
+        # Emit UI event (assume ui_manager exists and has emit_event)
+        ui_manager = self.machine.machineManager.ui_manager
+        ui_manager.emit_event("ui.open_right_click_menu", out_event, source_element=None, componentName=self.name, component=self)
