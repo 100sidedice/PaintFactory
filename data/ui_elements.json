@@ -29,6 +29,461 @@
             ]
         }
     },
+    "screen.machineSidebar-left": {
+        "data": {
+            "__visible": true,
+            "__gapY": 11
+        },
+        "container": {
+            "pos": [0,0],
+            "size": [
+                131,
+                "__bottom"
+            ],
+            "keywords": [
+                "crop",
+                "grid"
+            ],
+            "opts": {
+                "padding": [10,10],
+                "columns": 1,
+                "gap": [
+                    0,
+                    "__gapY"
+                ]
+            }
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": 1,
+            "color": "#606060"
+        }
+    },
+    "screen.machineSidebar-left.machine-select0": {
+        "data": {
+            "__visible": true,
+            "__selected": false,
+            "__outlineColor": "#00B400FF"
+        },
+        "container": {
+            "pos": [0,0],
+            "size": [111,108],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": -3,
+            "color": "__outlineColor"
+        },
+        "image": {
+            "path": "Assets/conveyors.png",
+            "row": 0,
+            "col": 0,
+            "frameSize": [16,16],
+            "smooth": false
+        },
+        "input": {
+            "mouseup.left": {
+                "duration": 0,
+                "emit": "selected",
+                "scope": []
+            }
+        },
+        "eventReader": {
+            "event.name": {
+                "actions": [
+                    {
+                        "setValue": {
+                            "var": "__var",
+                            "value": true
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "screen.settings-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false
+        },
+        "container": {
+            "pos": [1678,34],
+            "size": [205,67],
+            "keywords": [
+                "crop"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": 10,
+            "color": "#606060FF"
+        },
+        "text": {
+            "placeholder": "Settings",
+            "align": "middle",
+            "verticalAlign": "middle",
+            "fontSize": 31
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "settings-menu-toggle",
+                "scope": [
+                    "screen.settings-bg"
+                ]
+            }
+        }
+    },
+    "screen.menu-closer": {
+        "data": {
+            "__visible": true
+        },
+        "container": {
+            "pos": [
+                "__left",
+                "__top"
+            ],
+            "size": [
+                "__right",
+                "__bottom"
+            ],
+            "keywords": [
+                "transparent"
+            ],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#00000000"
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "rightclick-close",
+                "scope": [
+                    "screen.right-click-menu"
+                ],
+                "conditions": []
+            }
+        }
+    },
+    "screen.right-click-menu": {
+        "data": {
+            "__visible": false,
+            "__machine": "machine.spawner"
+        },
+        "container": {
+            "pos": [600.0,600.0],
+            "size": [200,300],
+            "keywords": [
+                "input"
+            ],
+            "opts": {
+                "padding": [10,10]
+            }
+        },
+        "colorRect": {
+            "color": "#202020"
+        },
+        "outline": {
+            "width": 10,
+            "color": "#606060"
+        },
+        "setPos": {},
+        "eventReader": {
+            "ui.open_right_click_menu": {
+                "actions": [
+                    {
+                        "setValue": {
+                            "var": "__visible",
+                            "value": true
+                        }
+                    },
+                    {
+                        "setValue": {
+                            "var": "__machine",
+                            "value": "$event.source"
+                        }
+                    }
+                ]
+            },
+            "rightclick-close": {
+                "actions": [
+                    {
+                        "setValue": {
+                            "var": "__visible",
+                            "value": false
+                        }
+                    }
+                ]
+            },
+            "ui.right_click_menu.rotate_clicked": {
+                "actions": [
+                    {
+                        "emitEvent": {
+                            "name": "game.machine.rotate",
+                            "eventData": {
+                                "source": "$self.__machine"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "screen.right-click-menu.crop_box": {
+        "data": {
+            "__visible": true
+        },
+        "container": {
+            "pos": [
+                "__left",
+                "__top"
+            ],
+            "size": [
+                "__right",
+                "__bottom"
+            ],
+            "keywords": [
+                "crop",
+                "static"
+            ],
+            "opts": {}
+        },
+        "outline": {
+            "width": 10,
+            "color": "#989898FF"
+        },
+        "particle": {
+            "colors": [
+                "#FF0000",
+                "#FFFF00"
+            ],
+            "fade_in_min": 19.5,
+            "fade_in_max": 44.875,
+            "blend": 2,
+            "num_max": 100,
+            "particle_shapes": [
+                "star"
+            ],
+            "gravity_strength": 11.5,
+            "gravity_type": "direction",
+            "gravity_direction": 306.625,
+            "spawn_pos": [
+                "__left",
+                "__top"
+            ],
+            "rot_max": 3600.0,
+            "rot_min": -3600
+        }
+    },
+    "screen.right-click-menu.close": {
+        "data": {
+            "__visible": true
+        },
+        "container": {
+            "pos": [150,0],
+            "size": [30,30],
+            "keywords": [],
+            "opts": {
+                "padding": [5,5]
+            }
+        },
+        "colorRect": {
+            "color": "#FF00059B"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000"
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "rightclick-close",
+                "scope": [
+                    "screen.right-click-menu"
+                ]
+            }
+        }
+    },
+    "screen.right-click-menu.close.image": {
+        "data": {
+            "__visible": true
+        },
+        "container": {
+            "pos": [
+                "__middle",
+                "__middle"
+            ],
+            "size": [18,18],
+            "keywords": [
+                "crop",
+                "static"
+            ],
+            "opts": {}
+        },
+        "image": {
+            "path": "Assets/icons/close-icon.png"
+        }
+    },
+    "screen.right-click-menu.machine-title": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "Machine"
+        },
+        "container": {
+            "pos": [0,0],
+            "size": [140,30],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#2C44FF51"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "center",
+            "verticalAlign": "center",
+            "fontSize": 25
+        }
+    },
+    "screen.right-click-menu.machine-info": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "Machine infomation"
+        },
+        "container": {
+            "pos": [0,40],
+            "size": [180,112],
+            "keywords": [],
+            "opts": {}
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "left",
+            "verticalAlign": "top",
+            "fontSize": 21,
+            "wrap": true
+        }
+    },
+    "screen.right-click-menu.rotate-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "Rotate"
+        },
+        "container": {
+            "pos": [0,203],
+            "size": [140,36],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#202020FF"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "center",
+            "verticalAlign": "center",
+            "fontSize": 25
+        },
+        "input": {
+            "mouseup.left": {
+                "emit": "ui.right_click_menu.rotate_clicked"
+            }
+        }
+    },
+    "screen.right-click-menu.info-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "?"
+        },
+        "container": {
+            "pos": [150,203],
+            "size": [30,36],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#96BCBA72"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "center",
+            "verticalAlign": "center",
+            "fontSize": 25
+        }
+    },
+    "screen.right-click-menu.open-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "Open"
+        },
+        "container": {
+            "pos": [0,162],
+            "size": [180,31],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#2C6C2E7A"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "center",
+            "verticalAlign": "center",
+            "fontSize": 25
+        }
+    },
+    "screen.right-click-menu.delete-button": {
+        "data": {
+            "__visible": true,
+            "__editingText": false,
+            "__text": "Open"
+        },
+        "container": {
+            "pos": [0,249],
+            "size": [180,31],
+            "keywords": [],
+            "opts": {}
+        },
+        "colorRect": {
+            "color": "#2C6C2E7A"
+        },
+        "outline": {
+            "width": -5,
+            "color": "#000000FF"
+        },
+        "text": {
+            "align": "center",
+            "verticalAlign": "center",
+            "fontSize": 25
+        }
+    },
     "screen.settings-bg": {
         "data": {
             "__visible": false
@@ -201,41 +656,6 @@
             "fontSize": 34
         }
     },
-    "screen.settings-button": {
-        "data": {
-            "__visible": true,
-            "__editingText": false
-        },
-        "container": {
-            "pos": [1678,34],
-            "size": [205,67],
-            "keywords": [
-                "crop"
-            ],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#202020"
-        },
-        "outline": {
-            "width": 10,
-            "color": "#606060FF"
-        },
-        "text": {
-            "placeholder": "Settings",
-            "align": "middle",
-            "verticalAlign": "middle",
-            "fontSize": 31
-        },
-        "input": {
-            "mouseup.left": {
-                "emit": "settings-menu-toggle",
-                "scope": [
-                    "screen.settings-bg"
-                ]
-            }
-        }
-    },
     "screen.quit-conformation-menu": {
         "data": {
             "__visible": false
@@ -361,333 +781,6 @@
             "align": "center",
             "verticalAlign": "center",
             "wrap": true
-        }
-    },
-    "screen.machineSidebar-left": {
-        "data": {
-            "__visible": true,
-            "__gapY": 11
-        },
-        "container": {
-            "pos": [0,0],
-            "size": [
-                131,
-                "__bottom"
-            ],
-            "keywords": [
-                "crop",
-                "grid"
-            ],
-            "opts": {
-                "padding": [10,10],
-                "columns": 1,
-                "gap": [
-                    0,
-                    "__gapY"
-                ]
-            }
-        },
-        "colorRect": {
-            "color": "#202020"
-        },
-        "outline": {
-            "width": 1,
-            "color": "#606060"
-        }
-    },
-    "screen.machineSidebar-left.machine-select0": {
-        "data": {
-            "__visible": true,
-            "__selected": false,
-            "__outlineColor": "#00B400FF"
-        },
-        "container": {
-            "pos": [0,0],
-            "size": [111,108],
-            "keywords": [],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#202020"
-        },
-        "outline": {
-            "width": -3,
-            "color": "__outlineColor"
-        },
-        "image": {
-            "path": "Assets/conveyors.png",
-            "row": 0,
-            "col": 0,
-            "frameSize": [16,16],
-            "smooth": false
-        },
-        "input": {
-            "mouseup.left": {
-                "duration": 0,
-                "emit": "selected",
-                "scope": []
-            }
-        },
-        "eventReader": {
-            "event.name": {
-                "actions": [
-                    {
-                        "setValue": {
-                            "var": "__var",
-                            "value": true
-                        }
-                    }
-                ]
-            }
-        }
-    },
-    "screen.right-click-menu": {
-        "data": {
-            "__visible": true
-        },
-        "container": {
-            "pos": [1000,345],
-            "size": [200,300],
-            "keywords": [],
-            "opts": {
-                "padding": [10,10]
-            }
-        },
-        "colorRect": {
-            "color": "#202020"
-        },
-        "outline": {
-            "width": 10,
-            "color": "#606060"
-        },
-        "eventReader": {
-            "event.name": {
-                "actions": [
-                    {
-                        "setValue": {
-                            "var": "__visible",
-                            "value": true
-                        }
-                    }
-                ]
-            }
-        }
-    },
-    "screen.right-click-menu.crop_box": {
-        "data": {
-            "__visible": true
-        },
-        "container": {
-            "pos": [
-                "__left",
-                "__top"
-            ],
-            "size": [
-                "__right",
-                "__bottom"
-            ],
-            "keywords": [
-                "crop",
-                "static"
-            ],
-            "opts": {}
-        },
-        "outline": {
-            "width": 10,
-            "color": "#989898FF"
-        },
-        "particle": {
-            "colors": [
-                "#FF0000",
-                "#FFFF00"
-            ],
-            "fade_in_min": 19.5,
-            "fade_in_max": 44.875,
-            "blend": 2,
-            "num_max": 100,
-            "particle_shapes": [
-                "star"
-            ],
-            "gravity_strength": 11.5,
-            "gravity_type": "direction",
-            "gravity_direction": 306.625,
-            "spawn_pos": [
-                "__left",
-                "__top"
-            ],
-            "rot_max": 3600.0,
-            "rot_min": -3600
-        }
-    },
-    "screen.right-click-menu.close": {
-        "data": {
-            "__visible": true
-        },
-        "container": {
-            "pos": [150,0],
-            "size": [30,30],
-            "keywords": [],
-            "opts": {
-                "padding": [5,5]
-            }
-        },
-        "colorRect": {
-            "color": "#FF00059B"
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000"
-        },
-        "input": {
-            "mouseup.left": {
-                "emit": "rightclick-close",
-                "scope": [
-                    "screen.right-click-menu"
-                ]
-            }
-        }
-    },
-    "screen.right-click-menu.close.image": {
-        "data": {
-            "__visible": true
-        },
-        "container": {
-            "pos": [
-                "__middle",
-                "__middle"
-            ],
-            "size": [18,18],
-            "keywords": [
-                "crop",
-                "static"
-            ],
-            "opts": {}
-        },
-        "image": {
-            "path": "Assets/icons/close-icon.png"
-        }
-    },
-    "screen.right-click-menu.open": {
-        "data": {
-            "__visible": true,
-            "__editingText": false,
-            "__text": "Machine"
-        },
-        "container": {
-            "pos": [0,0],
-            "size": [140,30],
-            "keywords": [],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#2C44FF51"
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000FF"
-        },
-        "text": {
-            "align": "center",
-            "verticalAlign": "center",
-            "fontSize": 25
-        }
-    },
-    "screen.right-click-menu.open_copy": {
-        "data": {
-            "__visible": true,
-            "__editingText": false,
-            "__text": "Machine infomation"
-        },
-        "container": {
-            "pos": [0,40],
-            "size": [180,153],
-            "keywords": [],
-            "opts": {}
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000FF"
-        },
-        "text": {
-            "align": "left",
-            "verticalAlign": "top",
-            "fontSize": 21,
-            "wrap": true
-        }
-    },
-    "screen.right-click-menu.open_copy_copy": {
-        "data": {
-            "__visible": true,
-            "__editingText": false,
-            "__text": "Rotate"
-        },
-        "container": {
-            "pos": [0,244],
-            "size": [140,36],
-            "keywords": [],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#202020FF"
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000FF"
-        },
-        "text": {
-            "align": "center",
-            "verticalAlign": "center",
-            "fontSize": 25
-        }
-    },
-    "screen.right-click-menu.open_copy_copy_copy": {
-        "data": {
-            "__visible": true,
-            "__editingText": false,
-            "__text": "?"
-        },
-        "container": {
-            "pos": [150,244],
-            "size": [30,36],
-            "keywords": [],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#96BCBA72"
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000FF"
-        },
-        "text": {
-            "align": "center",
-            "verticalAlign": "center",
-            "fontSize": 25
-        }
-    },
-    "screen.right-click-menu.open_copy_copy1": {
-        "data": {
-            "__visible": true,
-            "__editingText": false,
-            "__text": "Open"
-        },
-        "container": {
-            "pos": [0,203],
-            "size": [180,31],
-            "keywords": [],
-            "opts": {}
-        },
-        "colorRect": {
-            "color": "#2C6C2E7A"
-        },
-        "outline": {
-            "width": -5,
-            "color": "#000000FF"
-        },
-        "text": {
-            "align": "center",
-            "verticalAlign": "center",
-            "fontSize": 25
         }
     }
 }

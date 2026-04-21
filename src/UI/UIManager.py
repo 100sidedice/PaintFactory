@@ -21,6 +21,9 @@ class UIManager:
         self._editor_array_sources = {}
         self._element_order = {}
         self._next_element_order = 0
+        # Per-frame input consumption and blocking state
+        self._consumed_input = set()
+        self._blocked_positions = set()
 
     def loadUIElements(self):
         """Load UI elements from data and create UIelement instances."""
@@ -322,10 +325,42 @@ class UIManager:
         if self.editor.enabled:
             self.editor.update(delta)
 
+        # Clear per-frame input state so each frame starts fresh.
+        self._consumed_input.clear()
+        self._blocked_positions.clear()
+
         # Update children first, then parents (reverse depth order).
         for element in reversed(self.flattenElements()):
+            # Skip elements covered by a non-transparent element processed earlier.
+            try:
+                mx, my = self.input.get_mouse_position()
+                if (int(mx), int(my)) in self._blocked_positions:
+                    continue
+            except Exception:
+                pass
+
             if hasattr(element, "update"):
                 element.update(delta)
+
+            # After updating, if this element visually covers the mouse and is not transparent,
+            # mark the mouse position as blocked so elements behind do not receive input.
+            try:
+                if element.is_visible():
+                    rect = element.get_rect()
+                    if rect is not None:
+                        mx, my = self.input.get_mouse_position()
+                        if rect.collidepoint((mx, my)):
+                            container = element.getComponent("container")
+                            transparent = False
+                            try:
+                                if container is not None and hasattr(container, "has_keyword"):
+                                    transparent = container.has_keyword("transparent")
+                            except Exception:
+                                transparent = False
+                            if not transparent:
+                                self._blocked_positions.add((int(mx), int(my)))
+            except Exception:
+                pass
 
     def draw(self):
         # Draw parents first, then children so children layer above.
@@ -601,6 +636,7 @@ class UIManager:
         element = UIelement(path, data, self.data, self, self.input)
         self.ui_elements[path] = element
         self._ensure_order_key(path)
+
 
     def create_element(self, path, element_data=None):
         if not path or path in self.ui_elements:
@@ -1048,6 +1084,66 @@ class UIManager:
             machine_manager.add_machine(str(machine_key), pos=pos, rotation=rotation)
             return
 
+        if event_name == "game.machine.rotate":
+            if machine_manager is None:
+                return
+
+            # Accept either a direct `source` like "machine.NAME" or a machine key/pos
+            source = payload.get("source") if isinstance(payload, dict) else None
+            machine_to_rotate = None
+
+            if isinstance(source, str) and source.startswith("machine."):
+                mname = source.split(".", 1)[1]
+                for m in machine_manager.machines:
+                    try:
+                        if str(m.name) == str(mname):
+                            machine_to_rotate = m
+                            break
+                    except Exception:
+                        continue
+
+            # Fallback: match by pos/machine key if provided
+            if machine_to_rotate is None:
+                mkey = payload.get("machine") if isinstance(payload, dict) else None
+                pos = payload.get("pos") if isinstance(payload, dict) else None
+                for m in machine_manager.machines:
+                    if machine_manager._machine_matches(m, machine_key=mkey, pos=pos):
+                        machine_to_rotate = m
+                        break
+
+            if machine_to_rotate is None:
+                return
+
+            try:
+                machine_to_rotate.rotation = (int(machine_to_rotate.rotation) + 1) % 4
+            except Exception:
+                machine_to_rotate.rotation = 0
+
+            # Update sprite rotation if present
+            try:
+                if hasattr(machine_to_rotate, "sprite") and machine_to_rotate.sprite is not None:
+                    machine_to_rotate.sprite.rotation = int(machine_to_rotate.rotation) % 4
+            except Exception:
+                pass
+
+            # Notify machine components about the rotation so they can update their internal data
+            try:
+                for comp in list(getattr(machine_to_rotate, "components", {}).values()):
+                    try:
+                        if hasattr(comp, "rotate"):
+                            comp.rotate(machine_to_rotate.rotation)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+            # Push a machine-level rotate event so other systems can react
+            try:
+                machine_to_rotate.pushEvent("rotate", {"rotation": machine_to_rotate.rotation}, None)
+            except Exception:
+                pass
+
+            return
         if event_name == "game.machine.remove":
             if machine_manager is None:
                 return

@@ -36,10 +36,13 @@ class SelectComponent(Component):
             x = int(pos[0])
             y = int(pos[1])
 
-        out_event = {"pos": [x, y], "source": f"machine.{self.machine.name}"}
+        # Convert world pixel position to screen position using camera
+        camera = self.machine.machineManager.tilemap.camera
+        sx, sy = camera.apply_pos((x, y))
+        out_event = {"pos": [sx, sy], "source": f"machine.{self.machine.name}"}
 
         print(f"Right-clicked machine (select via event): {self.machine.name} at {out_event['pos']}")
 
         # Emit UI event (assume ui_manager exists and has emit_event)
         ui_manager = self.machine.machineManager.ui_manager
-        ui_manager.emit_event("ui.open_right_click_menu", out_event, source_element=None, componentName=self.name, component=self)
+        ui_manager.emit_event("ui.open_right_click_menu", out_event, source_element=out_event["source"], componentName=self.name, component=self)

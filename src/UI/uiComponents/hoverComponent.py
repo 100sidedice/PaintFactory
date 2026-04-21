@@ -1,4 +1,4 @@
-from .ui_component import UIComponent
+from .UIcomponent import UIComponent
 
 class HoverComponent(UIComponent):
     """

@@ -1,6 +1,6 @@
 import pygame
 
-from src.UI.uiComponents.ui_component import UIComponent
+from src.UI.uiComponents.UIcomponent import UIComponent
 
 
 class OutlineComponent(UIComponent):

@@ -8,7 +8,14 @@ class SpawnComponent(Component):
         self.lastUpdate = 0
         self.updateInterval = self.machine.machineManager.GAME_STATE.get("machines.spawner_rate")  # Time interval between spawns in seconds
         self.spawnType = self.componentData["itemType"]
-        self.offset = self.componentData.get("offset", (0, 0))
+        # Preserve base offset so rotation can be recomputed
+        self.base_offset = tuple(self.componentData.get("offset", (0, 0)))
+        self.offset = tuple(self.base_offset)
+        try:
+            rot = int(self.machine.callData("rotation"))
+        except Exception:
+            rot = 0
+        self._apply_rotation(rot)
         self.updateType = "timed"  # Update type for this component is timed, meaning it updates based on a time interval
 
     def update(self, items, delta):
@@ -29,3 +36,17 @@ class SpawnComponent(Component):
     def changeSpawnItem(self, newItem):
         """Change the type of item this spawner spawns."""
         self.spawnType = newItem
+
+    def _apply_rotation(self, rot):
+        try:
+            r = int(rot) % 4
+        except Exception:
+            r = 0
+        ox, oy = self.base_offset
+        for _ in range(r):
+            ox, oy = oy, -ox
+        self.offset = (ox, oy)
+
+    def rotate(self, new_rotation):
+        """Called when the machine's rotation changes."""
+        self._apply_rotation(new_rotation)

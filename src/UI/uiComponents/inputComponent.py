@@ -1,4 +1,4 @@
-from src.UI.uiComponents.ui_component import UIComponent
+from src.UI.uiComponents.UIcomponent import UIComponent
 import pygame
 
 
@@ -77,11 +77,23 @@ class InputComponent(UIComponent):
 
         now = pygame.time.get_ticks() / 1000.0
         consumed_triggers = set()
+        try:
+            mx, my = self.input.get_mouse_position()
+            mouse_pos_key = (int(mx), int(my))
+        except Exception:
+            mouse_pos_key = None
 
         for trigger_key, rule in self.config.items():
             trigger_name = trigger_key.split("-", 1)[0]
             if trigger_name in consumed_triggers:
                 continue
+            # Skip if another element already consumed this trigger at this mouse position
+            try:
+                if mouse_pos_key is not None and self.manager._consumed_input is not None:
+                    if (trigger_name, mouse_pos_key) in self.manager._consumed_input:
+                        continue
+            except Exception:
+                pass
             if not self._triggered(trigger_name):
                 continue
 
@@ -112,3 +124,17 @@ class InputComponent(UIComponent):
             self._last_trigger_time[trigger_key] = now
             if rule.get("consume", True):
                 consumed_triggers.add(trigger_name)
+                # Respect `transparent` container keyword: if transparent, do not consume for others
+                try:
+                    container = self.element.getComponent("container")
+                    transparent = False
+                    if container is not None and hasattr(container, "has_keyword"):
+                        transparent = container.has_keyword("transparent")
+                except Exception:
+                    transparent = False
+
+                if not transparent and mouse_pos_key is not None:
+                    try:
+                        self.manager._consumed_input.add((trigger_name, mouse_pos_key))
+                    except Exception:
+                        pass
