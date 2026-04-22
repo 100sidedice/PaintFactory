@@ -1,0 +1,18 @@
+{
+  "levels": [
+        {
+            "id": 1,
+            "name": "Spawn and Deliver",
+            "goal": [
+                { "color": "#FF0000", "amount": 5 }
+            ],
+            "machine_limits": {
+                "conveyor": 99,
+                "spawner": 1
+            },
+            "spawner_resources":{
+                "#FF0000": 5
+            }
+        }
+    ]
+}

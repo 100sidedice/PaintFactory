@@ -60,12 +60,34 @@
             "width": 1,
             "color": "#606060"
         }
+        ,
+        "machineSidebar": {}
+    },
+    "screen.machineSidebar-left.selection": {
+        "data": {
+            "__visible": true,
+            "__selectedMachine": null
+        },
+        "eventReader": {
+            "selected": {
+                "actions": [
+                    {
+                        "setValue": {
+                            "var": "__selectedMachine",
+                            "value": "$source.__machineKey"
+                        }
+                    }
+                ]
+            }
+        }
     },
     "screen.machineSidebar-left.machine-select0": {
         "data": {
-            "__visible": true,
+            "__visible": false,
             "__selected": false,
-            "__outlineColor": "#00B400FF"
+            "__outlineColor": "#00B400FF",
+            "__machineKey": "",
+            "__count": ""
         },
         "container": {
             "pos": [0,0],
@@ -86,6 +108,13 @@
             "col": 0,
             "frameSize": [16,16],
             "smooth": false
+        },
+        "text": {
+            "bind": "__count",
+            "fontSize": 18,
+            "align": "right",
+            "verticalAlign": "bottom",
+            "padding": [6,6]
         },
         "input": {
             "mouseup.left": {
@@ -176,10 +205,10 @@
     "screen.right-click-menu": {
         "data": {
             "__visible": false,
-            "__machine": "machine.spawner"
+            "__machine": "machine.seller"
         },
         "container": {
-            "pos": [600.0,600.0],
+            "pos": [840.0,600.0],
             "size": [200,300],
             "keywords": [
                 "input"
@@ -308,6 +337,17 @@
                 "scope": [
                     "screen.right-click-menu"
                 ]
+            }
+        }
+    },
+    "screen.world-click-overlay": {
+        "data": {"__visible": true},
+        "container": {"pos": ["__left","__top"], "size": ["__right","__bottom"], "keywords": ["transparent","input"]},
+        "colorRect": {"color": "#00000000"},
+        "input": {
+            "mouseup.left": {
+                "emit": "ui.request_place",
+                "scope": []
             }
         }
     },
@@ -463,7 +503,7 @@
         "data": {
             "__visible": true,
             "__editingText": false,
-            "__text": "Open"
+            "__text": "Delete"
         },
         "container": {
             "pos": [0,249],
@@ -472,7 +512,7 @@
             "opts": {}
         },
         "colorRect": {
-            "color": "#2C6C2E7A"
+            "color": "#6C0F0A7A"
         },
         "outline": {
             "width": -5,

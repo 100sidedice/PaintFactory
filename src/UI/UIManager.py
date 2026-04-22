@@ -6,6 +6,7 @@ import os
 import copy
 import pygame
 from data.settings import BASE_DIR
+from ..Levels import levels as levels_data
 
 class UIManager:
     def __init__(self, data, input, surface, GAME_STATE=None, game=None):
@@ -330,15 +331,13 @@ class UIManager:
         self._blocked_positions.clear()
 
         # Update children first, then parents (reverse depth order).
+        # Note: do NOT skip calling `update` on elements that are visually
+        # covered by other non-transparent elements. Skipping the `update`
+        # entirely causes elements behind to "freeze" (their continuous
+        # updates won't run). We only want to block input delivery, so
+        # always call `update` and rely on input/blocking logic elsewhere
+        # to prevent input from reaching covered elements.
         for element in reversed(self.flattenElements()):
-            # Skip elements covered by a non-transparent element processed earlier.
-            try:
-                mx, my = self.input.get_mouse_position()
-                if (int(mx), int(my)) in self._blocked_positions:
-                    continue
-            except Exception:
-                pass
-
             if hasattr(element, "update"):
                 element.update(delta)
 
@@ -1081,6 +1080,26 @@ class UIManager:
             except Exception:
                 rotation = 0
 
+            # Enforce level-based machine limits (use preloaded assets if available)
+            try:
+                limit = levels_data.get_machine_limit(None, str(machine_key), preloaded_assets=self.data, default=None)
+            except Exception:
+                limit = None
+
+            if isinstance(limit, int):
+                current = 0
+                try:
+                    for m in machine_manager.machines:
+                        if str(getattr(m, "name", "")) == str(machine_key):
+                            current += 1
+                except Exception:
+                    current = 0
+
+                if current >= limit:
+                    # Emit a UI-level event so JSON-driven UI can respond (e.g., show message)
+                    self.emit_event("ui.machine_limit_reached", {"machine": machine_key, "limit": limit})
+                    return
+
             machine_manager.add_machine(str(machine_key), pos=pos, rotation=rotation)
             return
 
@@ -1144,6 +1163,31 @@ class UIManager:
                 pass
 
             return
+        # UI requests a placement at the clicked screen position. Translate
+        # screen mouse position -> world tile coords and forward to machine spawn.
+        if event_name == "ui.request_place":
+            sel_elem = self.getElement("screen.machineSidebar-left.selection")
+            selected = None
+            if sel_elem is not None:
+                selected = sel_elem.get_data("__selectedMachine")
+            if not selected:
+                return
+            try:
+                game = getattr(self, "game", None)
+                cam = getattr(game, "camera", None)
+                tilemap = getattr(game, "tilemap", None)
+                if cam is None or tilemap is None:
+                    return
+                mx, my = self.input.get_mouse_position()
+                world_x, world_y = cam.screen_to_world((mx, my))
+                tw, th = tilemap.tile_size
+                tile_x = int(world_x // tw)
+                tile_y = int(world_y // th)
+                payload = {"machine": selected, "pos": [tile_x, tile_y]}
+                self.emit_event("game.machine.spawn", payload, source_element=None)
+            except Exception:
+                return
+
         if event_name == "game.machine.remove":
             if machine_manager is None:
                 return

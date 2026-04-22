@@ -130,6 +130,7 @@ class Game:
             {"type":"image","path":"Assets/conveyor.png", "name":"conveyors"},
             {"type":"image","path":"Assets/paintbuckets.png", "name":"paintbuckets"},
             {"type":"json","path":"data/sprites.json", "name":"sprites"},
+            {"type":"json","path":"data/levels.json", "name":"levels"},
             {"type":"json","path":"data/tiles.json", "name":"machines"},
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tmx", "name":"tilemap.background.tmx"},
             {"type":"text","path":"Assets/Tilemaps/backgroundmap.tsx", "name":"tilemap.background.tsx"},
